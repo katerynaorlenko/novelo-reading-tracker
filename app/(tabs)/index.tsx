@@ -28,6 +28,9 @@ export default function LibraryScreen() {
   const [author, setAuthor] = useState("");
   const [totalPages, setTotalPages] = useState("");
   const [currentPage, setCurrentPage] = useState("");
+  const [progressInputs, setProgressInputs] = useState<Record<string, string>>(
+    {},
+  );
 
   useEffect(() => {
     loadBooks();
@@ -104,6 +107,48 @@ export default function LibraryScreen() {
 
   const handleDeleteBook = (id: string) => {
     setBooks((prev) => prev.filter((book) => book.id !== id));
+
+    setProgressInputs((prev) => {
+      const updated = { ...prev };
+      delete updated[id];
+      return updated;
+    });
+  };
+
+  const handleProgressInputChange = (id: string, value: string) => {
+    setProgressInputs((prev) => ({
+      ...prev,
+      [id]: value,
+    }));
+  };
+
+  const handleUpdateProgress = (id: string) => {
+    const inputValue = progressInputs[id] || "";
+    const newCurrentPage = Number(inputValue);
+
+    if (Number.isNaN(newCurrentPage) || newCurrentPage < 0) {
+      return;
+    }
+
+    setBooks((prevBooks) =>
+      prevBooks.map((book) => {
+        if (book.id !== id) return book;
+
+        const safeCurrentPage =
+          newCurrentPage > book.totalPages ? book.totalPages : newCurrentPage;
+
+        return {
+          ...book,
+          currentPage: safeCurrentPage,
+          status: getBookStatus(safeCurrentPage, book.totalPages),
+        };
+      }),
+    );
+
+    setProgressInputs((prev) => ({
+      ...prev,
+      [id]: "",
+    }));
   };
 
   return (
@@ -183,6 +228,24 @@ export default function LibraryScreen() {
                 <Text style={styles.progressText}>{progress}% completed</Text>
 
                 <Text style={styles.bookStatus}>Status: {book.status}</Text>
+
+                <Text style={styles.updateLabel}>Update Current Page</Text>
+                <TextInput
+                  style={styles.updateInput}
+                  placeholder="Enter new page"
+                  value={progressInputs[book.id] || ""}
+                  onChangeText={(value) =>
+                    handleProgressInputChange(book.id, value)
+                  }
+                  keyboardType="numeric"
+                />
+
+                <Pressable
+                  style={styles.updateButton}
+                  onPress={() => handleUpdateProgress(book.id)}
+                >
+                  <Text style={styles.updateButtonText}>Update Progress</Text>
+                </Pressable>
 
                 <Pressable
                   style={styles.deleteButton}
@@ -306,6 +369,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6C63FF",
     marginTop: 8,
+    fontWeight: "600",
+  },
+
+  updateLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: 12,
+    marginBottom: 6,
+  },
+
+  updateInput: {
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    backgroundColor: "#FFFFFF",
+  },
+
+  updateButton: {
+    marginTop: 10,
+    backgroundColor: "#2563EB",
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+
+  updateButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
     fontWeight: "600",
   },
 
