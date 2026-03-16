@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type BookStatus = "planned" | "reading" | "finished";
+type BookStatus = 'planned' | 'reading' | 'finished';
 
 type Book = {
   id: string;
@@ -12,31 +13,56 @@ type Book = {
   status: BookStatus;
 };
 
+const STORAGE_KEY = 'novelo_books';
+
 export default function LibraryScreen() {
   const [books, setBooks] = useState<Book[]>([]);
-  const [title, setTitle] = useState("");
-  const [author, setAuthor] = useState("");
-  const [totalPages, setTotalPages] = useState("");
-  const [currentPage, setCurrentPage] = useState("");
+  const [title, setTitle] = useState('');
+  const [author, setAuthor] = useState('');
+  const [totalPages, setTotalPages] = useState('');
+  const [currentPage, setCurrentPage] = useState('');
+
+  useEffect(() => {
+    loadBooks();
+  }, []);
+
+  useEffect(() => {
+    saveBooks();
+  }, [books]);
+
+  const loadBooks = async () => {
+    try {
+      const savedBooks = await AsyncStorage.getItem(STORAGE_KEY);
+
+      if (savedBooks) {
+        setBooks(JSON.parse(savedBooks));
+      }
+    } catch (error) {
+      console.log('Error loading books:', error);
+    }
+  };
+
+  const saveBooks = async () => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(books));
+    } catch (error) {
+      console.log('Error saving books:', error);
+    }
+  };
 
   const getBookStatus = (current: number, total: number): BookStatus => {
-    if (current <= 0) return "planned";
-    if (current >= total) return "finished";
-    return "reading";
+    if (current <= 0) return 'planned';
+    if (current >= total) return 'finished';
+    return 'reading';
   };
 
   const handleAddBook = () => {
     if (!title.trim() || !author.trim() || !totalPages.trim()) return;
 
     const total = Number(totalPages);
-    const current = Number(currentPage || "0");
+    const current = Number(currentPage || '0');
 
-    if (
-      Number.isNaN(total) ||
-      Number.isNaN(current) ||
-      total <= 0 ||
-      current < 0
-    ) {
+    if (Number.isNaN(total) || Number.isNaN(current) || total <= 0 || current < 0) {
       return;
     }
 
@@ -53,10 +79,10 @@ export default function LibraryScreen() {
 
     setBooks((prev) => [...prev, newBook]);
 
-    setTitle("");
-    setAuthor("");
-    setTotalPages("");
-    setCurrentPage("");
+    setTitle('');
+    setAuthor('');
+    setTotalPages('');
+    setCurrentPage('');
   };
 
   const handleDeleteBook = (id: string) => {
@@ -121,7 +147,9 @@ export default function LibraryScreen() {
                 Progress: {book.currentPage} / {book.totalPages} pages
               </Text>
 
-              <Text style={styles.bookStatus}>Status: {book.status}</Text>
+              <Text style={styles.bookStatus}>
+                Status: {book.status}
+              </Text>
 
               <Pressable
                 style={styles.deleteButton}
@@ -141,21 +169,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 24,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: '#FFFFFF',
   },
 
   title: {
     fontSize: 32,
-    fontWeight: "700",
+    fontWeight: '700',
     marginTop: 40,
-    textAlign: "center",
+    textAlign: 'center',
   },
 
   subtitle: {
     fontSize: 20,
     marginTop: 8,
     marginBottom: 24,
-    textAlign: "center",
+    textAlign: 'center',
   },
 
   form: {
@@ -164,14 +192,14 @@ const styles = StyleSheet.create({
 
   label: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: '600',
     marginBottom: 6,
     marginTop: 10,
   },
 
   input: {
     borderWidth: 1,
-    borderColor: "#D1D5DB",
+    borderColor: '#D1D5DB',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -182,18 +210,18 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 16,
     marginTop: 16,
-    color: "#666",
-    textAlign: "center",
+    color: '#666',
+    textAlign: 'center',
   },
 
   list: {
-    width: "100%",
+    width: '100%',
     marginTop: 8,
   },
 
   card: {
-    width: "100%",
-    backgroundColor: "#F3F4F6",
+    width: '100%',
+    backgroundColor: '#F3F4F6',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
@@ -201,53 +229,53 @@ const styles = StyleSheet.create({
 
   bookTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: '700',
   },
 
   bookAuthor: {
     fontSize: 14,
-    color: "#555",
+    color: '#555',
     marginTop: 4,
   },
 
   bookPages: {
     fontSize: 14,
-    color: "#444",
+    color: '#444',
     marginTop: 8,
   },
 
   bookStatus: {
     fontSize: 14,
-    color: "#6C63FF",
+    color: '#6C63FF',
     marginTop: 8,
-    fontWeight: "600",
+    fontWeight: '600',
   },
 
   button: {
-    backgroundColor: "#6C63FF",
+    backgroundColor: '#6C63FF',
     paddingVertical: 12,
     borderRadius: 12,
-    alignItems: "center",
+    alignItems: 'center',
     marginTop: 12,
   },
 
   buttonText: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: '600',
   },
 
   deleteButton: {
     marginTop: 12,
-    backgroundColor: "#EF4444",
+    backgroundColor: '#EF4444',
     paddingVertical: 10,
     borderRadius: 10,
-    alignItems: "center",
+    alignItems: 'center',
   },
 
   deleteButtonText: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: '600',
   },
 });
