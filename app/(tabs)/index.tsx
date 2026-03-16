@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 type Book = {
   id: string;
@@ -10,22 +10,49 @@ type Book = {
 
 export default function LibraryScreen() {
   const [books, setBooks] = useState<Book[]>([]);
+  const [title, setTitle] = useState("");
+  const [author, setAuthor] = useState("");
 
   const handleAddBook = () => {
+    if (!title.trim() || !author.trim()) {
+      return;
+    }
+
     const newBook: Book = {
       id: Date.now().toString(),
-      title: "Atomic Habits",
-      author: "James Clear",
-      status: "reading",
+      title: title.trim(),
+      author: author.trim(),
+      status: "planned",
     };
 
     setBooks((prevBooks) => [...prevBooks, newBook]);
+    setTitle("");
+    setAuthor("");
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Novelo</Text>
       <Text style={styles.subtitle}>My Library</Text>
+
+      <View style={styles.form}>
+        <TextInput
+          style={styles.input}
+          placeholder="Book title"
+          value={title}
+          onChangeText={setTitle}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Author"
+          value={author}
+          onChangeText={setAuthor}
+        />
+
+        <Pressable style={styles.button} onPress={handleAddBook}>
+          <Text style={styles.buttonText}>Save Book</Text>
+        </Pressable>
+      </View>
 
       {books.length === 0 ? (
         <Text style={styles.text}>No books yet</Text>
@@ -40,10 +67,6 @@ export default function LibraryScreen() {
           ))}
         </View>
       )}
-
-      <Pressable style={styles.button} onPress={handleAddBook}>
-        <Text style={styles.buttonText}>Add Book</Text>
-      </Pressable>
     </View>
   );
 }
@@ -51,29 +74,42 @@ export default function LibraryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
     padding: 24,
     backgroundColor: "#FFFFFF",
   },
   title: {
     fontSize: 32,
     fontWeight: "700",
+    marginTop: 40,
+    textAlign: "center",
   },
   subtitle: {
     fontSize: 20,
     marginTop: 8,
-    marginBottom: 16,
+    marginBottom: 24,
+    textAlign: "center",
+  },
+  form: {
+    marginBottom: 24,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+    fontSize: 16,
   },
   text: {
     fontSize: 16,
     marginTop: 16,
     color: "#666",
+    textAlign: "center",
   },
   list: {
     width: "100%",
-    marginTop: 16,
-    marginBottom: 24,
+    marginTop: 8,
   },
   card: {
     width: "100%",
@@ -98,11 +134,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   button: {
-    marginTop: 24,
     backgroundColor: "#6C63FF",
     paddingVertical: 12,
-    paddingHorizontal: 20,
     borderRadius: 12,
+    alignItems: "center",
   },
   buttonText: {
     color: "#FFFFFF",
