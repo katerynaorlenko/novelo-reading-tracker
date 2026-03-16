@@ -71,6 +71,14 @@ export default function LibraryScreen() {
     return Math.round((current / total) * 100);
   };
 
+  const totalBooks = books.length;
+  const plannedBooks = books.filter((book) => book.status === "planned").length;
+  const readingBooks = books.filter((book) => book.status === "reading").length;
+  const finishedBooks = books.filter(
+    (book) => book.status === "finished",
+  ).length;
+  const totalPagesRead = books.reduce((sum, book) => sum + book.currentPage, 0);
+
   const handleAddBook = () => {
     if (!title.trim() || !author.trim() || !totalPages.trim()) return;
 
@@ -159,6 +167,37 @@ export default function LibraryScreen() {
     >
       <Text style={styles.title}>Novelo</Text>
       <Text style={styles.subtitle}>My Library</Text>
+
+      <View style={styles.statsSection}>
+        <Text style={styles.statsTitle}>Reading Statistics</Text>
+
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{totalBooks}</Text>
+            <Text style={styles.statLabel}>Total Books</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{plannedBooks}</Text>
+            <Text style={styles.statLabel}>Planned</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{readingBooks}</Text>
+            <Text style={styles.statLabel}>Reading</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{finishedBooks}</Text>
+            <Text style={styles.statLabel}>Finished</Text>
+          </View>
+        </View>
+
+        <View style={styles.pagesReadCard}>
+          <Text style={styles.pagesReadValue}>{totalPagesRead}</Text>
+          <Text style={styles.pagesReadLabel}>Total Pages Read</Text>
+        </View>
+      </View>
 
       <View style={styles.form}>
         <Text style={styles.label}>Book Title</Text>
@@ -285,6 +324,62 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 24,
     textAlign: "center",
+  },
+
+  statsSection: {
+    marginBottom: 24,
+  },
+
+  statsTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
+
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+
+  statCard: {
+    width: "48%",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    alignItems: "center",
+  },
+
+  statValue: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#6C63FF",
+  },
+
+  statLabel: {
+    fontSize: 14,
+    color: "#555",
+    marginTop: 6,
+  },
+
+  pagesReadCard: {
+    backgroundColor: "#EEF2FF",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+  },
+
+  pagesReadValue: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#4338CA",
+  },
+
+  pagesReadLabel: {
+    fontSize: 14,
+    color: "#555",
+    marginTop: 6,
   },
 
   form: {
