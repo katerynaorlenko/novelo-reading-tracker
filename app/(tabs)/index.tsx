@@ -28,6 +28,7 @@ export default function LibraryScreen() {
   const [author, setAuthor] = useState("");
   const [totalPages, setTotalPages] = useState("");
   const [currentPage, setCurrentPage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [progressInputs, setProgressInputs] = useState<Record<string, string>>(
     {},
   );
@@ -80,17 +81,21 @@ export default function LibraryScreen() {
   const totalPagesRead = books.reduce((sum, book) => sum + book.currentPage, 0);
 
   const handleAddBook = () => {
-    if (!title.trim() || !author.trim() || !totalPages.trim()) return;
+    if (!title.trim() || !author.trim() || !totalPages.trim()) {
+      setErrorMessage("Please fill in title, author, and total pages.");
+      return;
+    }
 
     const total = Number(totalPages);
     const current = Number(currentPage || "0");
 
-    if (
-      Number.isNaN(total) ||
-      Number.isNaN(current) ||
-      total <= 0 ||
-      current < 0
-    ) {
+    if (Number.isNaN(total) || total <= 0) {
+      setErrorMessage("Total pages must be a number greater than 0.");
+      return;
+    }
+
+    if (Number.isNaN(current) || current < 0) {
+      setErrorMessage("Current page must be 0 or a positive number.");
       return;
     }
 
@@ -111,6 +116,7 @@ export default function LibraryScreen() {
     setAuthor("");
     setTotalPages("");
     setCurrentPage("");
+    setErrorMessage("");
   };
 
   const handleDeleteBook = (id: string) => {
@@ -233,6 +239,10 @@ export default function LibraryScreen() {
           onChangeText={setCurrentPage}
           keyboardType="numeric"
         />
+
+        {errorMessage ? (
+          <Text style={styles.errorText}>{errorMessage}</Text>
+        ) : null}
 
         <Pressable style={styles.button} onPress={handleAddBook}>
           <Text style={styles.buttonText}>Save Book</Text>
@@ -401,6 +411,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 8,
     fontSize: 16,
+  },
+
+  errorText: {
+    color: "#DC2626",
+    fontSize: 14,
+    marginTop: 4,
+    marginBottom: 8,
+    fontWeight: "500",
   },
 
   text: {
