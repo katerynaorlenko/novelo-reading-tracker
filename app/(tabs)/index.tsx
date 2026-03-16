@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImagePicker from "expo-image-picker";
 import { useEffect, useState } from "react";
 import {
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,6 +20,7 @@ type Book = {
   totalPages: number;
   currentPage: number;
   status: BookStatus;
+  coverUri?: string;
 };
 
 const STORAGE_KEY = "novelo_books";
@@ -28,6 +31,7 @@ export default function LibraryScreen() {
   const [author, setAuthor] = useState("");
   const [totalPages, setTotalPages] = useState("");
   const [currentPage, setCurrentPage] = useState("");
+  const [coverUri, setCoverUri] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [progressInputs, setProgressInputs] = useState<Record<string, string>>(
     {},
@@ -58,6 +62,33 @@ export default function LibraryScreen() {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(books));
     } catch (error) {
       console.log("Error saving books:", error);
+    }
+  };
+
+  const pickCoverImage = async () => {
+    try {
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permissionResult.granted) {
+        setErrorMessage("Gallery permission is required to choose a cover.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [3, 4],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setCoverUri(result.assets[0].uri);
+        setErrorMessage("");
+      }
+    } catch (error) {
+      console.log("Error picking image:", error);
+      setErrorMessage("Could not open gallery.");
     }
   };
 
@@ -108,6 +139,7 @@ export default function LibraryScreen() {
       totalPages: total,
       currentPage: safeCurrentPage,
       status: getBookStatus(safeCurrentPage, total),
+      coverUri: coverUri || undefined,
     };
 
     setBooks((prev) => [...prev, newBook]);
@@ -116,6 +148,7 @@ export default function LibraryScreen() {
     setAuthor("");
     setTotalPages("");
     setCurrentPage("");
+    setCoverUri("");
     setErrorMessage("");
   };
 
@@ -240,6 +273,15 @@ export default function LibraryScreen() {
           keyboardType="numeric"
         />
 
+        <Text style={styles.label}>Book Cover</Text>
+        <Pressable style={styles.coverButton} onPress={pickCoverImage}>
+          <Text style={styles.coverButtonText}>Choose Cover</Text>
+        </Pressable>
+
+        {coverUri ? (
+          <Image source={{ uri: coverUri }} style={styles.previewImage} />
+        ) : null}
+
         {errorMessage ? (
           <Text style={styles.errorText}>{errorMessage}</Text>
         ) : null}
@@ -261,6 +303,13 @@ export default function LibraryScreen() {
 
             return (
               <View key={book.id} style={styles.card}>
+                {book.coverUri ? (
+                  <Image
+                    source={{ uri: book.coverUri }}
+                    style={styles.bookCover}
+                  />
+                ) : null}
+
                 <Text style={styles.bookTitle}>{book.title}</Text>
                 <Text style={styles.bookAuthor}>{book.author}</Text>
 
@@ -275,7 +324,6 @@ export default function LibraryScreen() {
                 </View>
 
                 <Text style={styles.progressText}>{progress}% completed</Text>
-
                 <Text style={styles.bookStatus}>Status: {book.status}</Text>
 
                 <Text style={styles.updateLabel}>Update Current Page</Text>
@@ -413,10 +461,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
+  coverButton: {
+    backgroundColor: "#0F766E",
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 4,
+  },
+
+  coverButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+
+  previewImage: {
+    width: 110,
+    height: 150,
+    borderRadius: 12,
+    marginTop: 12,
+    alignSelf: "center",
+  },
+
   errorText: {
     color: "#DC2626",
     fontSize: 14,
-    marginTop: 4,
+    marginTop: 8,
     marginBottom: 8,
     fontWeight: "500",
   },
@@ -439,6 +509,14 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
+  },
+
+  bookCover: {
+    width: 100,
+    height: 140,
+    borderRadius: 12,
+    marginBottom: 12,
+    alignSelf: "center",
   },
 
   bookTitle: {
