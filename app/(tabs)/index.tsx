@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
-import { useEffect, useState } from "react";
+import { router } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
   Image,
   Pressable,
@@ -21,6 +23,10 @@ type Book = {
   currentPage: number;
   status: BookStatus;
   coverUri?: string;
+  notes?: string;
+  favoriteQuote?: string;
+  thoughts?: string;
+  summary?: string;
 };
 
 const STORAGE_KEY = "novelo_books";
@@ -33,13 +39,16 @@ export default function LibraryScreen() {
   const [currentPage, setCurrentPage] = useState("");
   const [coverUri, setCoverUri] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [progressInputs, setProgressInputs] = useState<Record<string, string>>(
-    {},
-  );
 
   useEffect(() => {
     loadBooks();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadBooks();
+    }, []),
+  );
 
   useEffect(() => {
     saveBooks();
@@ -132,6 +141,10 @@ export default function LibraryScreen() {
       currentPage: safeCurrentPage,
       status: getBookStatus(safeCurrentPage, total),
       coverUri: coverUri || undefined,
+      notes: "",
+      favoriteQuote: "",
+      thoughts: "",
+      summary: "",
     };
 
     setBooks((prev) => [...prev, newBook]);
@@ -144,52 +157,6 @@ export default function LibraryScreen() {
     setErrorMessage("");
   };
 
-  const handleDeleteBook = (id: string) => {
-    setBooks((prev) => prev.filter((book) => book.id !== id));
-
-    setProgressInputs((prev) => {
-      const updated = { ...prev };
-      delete updated[id];
-      return updated;
-    });
-  };
-
-  const handleProgressInputChange = (id: string, value: string) => {
-    setProgressInputs((prev) => ({
-      ...prev,
-      [id]: value,
-    }));
-  };
-
-  const handleUpdateProgress = (id: string) => {
-    const inputValue = progressInputs[id] || "";
-    const newCurrentPage = Number(inputValue);
-
-    if (Number.isNaN(newCurrentPage) || newCurrentPage < 0) {
-      return;
-    }
-
-    setBooks((prevBooks) =>
-      prevBooks.map((book) => {
-        if (book.id !== id) return book;
-
-        const safeCurrentPage =
-          newCurrentPage > book.totalPages ? book.totalPages : newCurrentPage;
-
-        return {
-          ...book,
-          currentPage: safeCurrentPage,
-          status: getBookStatus(safeCurrentPage, book.totalPages),
-        };
-      }),
-    );
-
-    setProgressInputs((prev) => ({
-      ...prev,
-      [id]: "",
-    }));
-  };
-
   return (
     <ScrollView
       style={styles.container}
@@ -200,6 +167,8 @@ export default function LibraryScreen() {
       <Text style={styles.subtitle}>My Library</Text>
 
       <View style={styles.form}>
+        <Text style={styles.formTitle}>Add New Book</Text>
+
         <Text style={styles.label}>Book Title</Text>
         <TextInput
           style={styles.input}
@@ -252,8 +221,10 @@ export default function LibraryScreen() {
         </Pressable>
       </View>
 
+      <Text style={styles.sectionTitle}>Your Books</Text>
+
       {books.length === 0 ? (
-        <Text style={styles.text}>No books yet</Text>
+        <Text style={styles.emptyText}>No books yet</Text>
       ) : (
         <View style={styles.list}>
           {books.map((book) => {
@@ -263,55 +234,49 @@ export default function LibraryScreen() {
             );
 
             return (
-              <View key={book.id} style={styles.card}>
-                {book.coverUri ? (
-                  <Image
-                    source={{ uri: book.coverUri }}
-                    style={styles.bookCover}
-                  />
-                ) : null}
+              <Pressable
+                key={book.id}
+                style={styles.card}
+                onPress={() => router.push(`/book/${book.id}` as never)}
+              >
+                <View style={styles.cardContent}>
+                  {book.coverUri ? (
+                    <Image
+                      source={{ uri: book.coverUri }}
+                      style={styles.bookCover}
+                    />
+                  ) : (
+                    <View style={styles.bookCoverPlaceholder}>
+                      <Text style={styles.bookCoverPlaceholderText}>
+                        No Cover
+                      </Text>
+                    </View>
+                  )}
 
-                <Text style={styles.bookTitle}>{book.title}</Text>
-                <Text style={styles.bookAuthor}>{book.author}</Text>
+                  <View style={styles.bookInfo}>
+                    <Text style={styles.bookTitle}>{book.title}</Text>
+                    <Text style={styles.bookAuthor}>{book.author}</Text>
 
-                <Text style={styles.bookPages}>
-                  Progress: {book.currentPage} / {book.totalPages} pages
-                </Text>
+                    <Text style={styles.bookPages}>
+                      {book.currentPage} / {book.totalPages} pages
+                    </Text>
 
-                <View style={styles.progressBarBackground}>
-                  <View
-                    style={[styles.progressBarFill, { width: `${progress}%` }]}
-                  />
+                    <View style={styles.progressBarBackground}>
+                      <View
+                        style={[
+                          styles.progressBarFill,
+                          { width: `${progress}%` },
+                        ]}
+                      />
+                    </View>
+
+                    <Text style={styles.progressText}>
+                      {progress}% completed
+                    </Text>
+                    <Text style={styles.bookStatus}>Status: {book.status}</Text>
+                  </View>
                 </View>
-
-                <Text style={styles.progressText}>{progress}% completed</Text>
-                <Text style={styles.bookStatus}>Status: {book.status}</Text>
-
-                <Text style={styles.updateLabel}>Update Current Page</Text>
-                <TextInput
-                  style={styles.updateInput}
-                  placeholder="Enter new page"
-                  value={progressInputs[book.id] || ""}
-                  onChangeText={(value) =>
-                    handleProgressInputChange(book.id, value)
-                  }
-                  keyboardType="numeric"
-                />
-
-                <Pressable
-                  style={styles.updateButton}
-                  onPress={() => handleUpdateProgress(book.id)}
-                >
-                  <Text style={styles.updateButtonText}>Update Progress</Text>
-                </Pressable>
-
-                <Pressable
-                  style={styles.deleteButton}
-                  onPress={() => handleDeleteBook(book.id)}
-                >
-                  <Text style={styles.deleteButtonText}>Delete</Text>
-                </Pressable>
-              </View>
+              </Pressable>
             );
           })}
         </View>
@@ -346,7 +311,18 @@ const styles = StyleSheet.create({
   },
 
   form: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    padding: 16,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+
+  formTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 10,
   },
 
   label: {
@@ -364,6 +340,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 8,
     fontSize: 16,
+    backgroundColor: "#FFFFFF",
   },
 
   coverButton: {
@@ -396,32 +373,72 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  text: {
+  button: {
+    backgroundColor: "#6C63FF",
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 12,
+  },
+
+  buttonText: {
+    color: "#FFFFFF",
     fontSize: 16,
-    marginTop: 16,
+    fontWeight: "600",
+  },
+
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
+
+  emptyText: {
+    fontSize: 16,
     color: "#666",
     textAlign: "center",
+    marginTop: 8,
   },
 
   list: {
     width: "100%",
-    marginTop: 8,
   },
 
   card: {
-    width: "100%",
     backgroundColor: "#F3F4F6",
-    padding: 16,
-    borderRadius: 12,
+    borderRadius: 14,
+    padding: 14,
     marginBottom: 12,
   },
 
+  cardContent: {
+    flexDirection: "row",
+    gap: 14,
+  },
+
   bookCover: {
-    width: 100,
-    height: 140,
+    width: 85,
+    height: 120,
     borderRadius: 12,
-    marginBottom: 12,
-    alignSelf: "center",
+  },
+
+  bookCoverPlaceholder: {
+    width: 85,
+    height: 120,
+    borderRadius: 12,
+    backgroundColor: "#E5E7EB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  bookCoverPlaceholderText: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+
+  bookInfo: {
+    flex: 1,
   },
 
   bookTitle: {
@@ -438,7 +455,7 @@ const styles = StyleSheet.create({
   bookPages: {
     fontSize: 14,
     color: "#444",
-    marginTop: 8,
+    marginTop: 10,
   },
 
   progressBarBackground: {
@@ -465,65 +482,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6C63FF",
     marginTop: 8,
-    fontWeight: "600",
-  },
-
-  updateLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginTop: 12,
-    marginBottom: 6,
-  },
-
-  updateInput: {
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    backgroundColor: "#FFFFFF",
-  },
-
-  updateButton: {
-    marginTop: 10,
-    backgroundColor: "#2563EB",
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-
-  updateButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-
-  button: {
-    backgroundColor: "#6C63FF",
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 12,
-  },
-
-  buttonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-
-  deleteButton: {
-    marginTop: 12,
-    backgroundColor: "#EF4444",
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-
-  deleteButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
     fontWeight: "600",
   },
 });
