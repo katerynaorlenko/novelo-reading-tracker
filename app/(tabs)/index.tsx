@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Image,
   Pressable,
@@ -14,6 +14,7 @@ import {
 } from "react-native";
 
 type BookStatus = "planned" | "reading" | "finished";
+type FilterStatus = "all" | BookStatus;
 
 type Book = {
   id: string;
@@ -39,6 +40,8 @@ export default function LibraryScreen() {
   const [currentPage, setCurrentPage] = useState("");
   const [coverUri, setCoverUri] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState<FilterStatus>("all");
 
   useEffect(() => {
     loadBooks();
@@ -157,6 +160,40 @@ export default function LibraryScreen() {
     setErrorMessage("");
   };
 
+  const filteredBooks = useMemo(() => {
+    return books.filter((book) => {
+      const matchesSearch =
+        book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        book.author.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesFilter =
+        activeFilter === "all" ? true : book.status === activeFilter;
+
+      return matchesSearch && matchesFilter;
+    });
+  }, [books, searchQuery, activeFilter]);
+
+  const renderFilterButton = (label: string, value: FilterStatus) => {
+    const isActive = activeFilter === value;
+
+    return (
+      <Pressable
+        key={value}
+        style={[styles.filterButton, isActive && styles.filterButtonActive]}
+        onPress={() => setActiveFilter(value)}
+      >
+        <Text
+          style={[
+            styles.filterButtonText,
+            isActive && styles.filterButtonTextActive,
+          ]}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    );
+  };
+
   return (
     <ScrollView
       style={styles.container}
@@ -223,11 +260,29 @@ export default function LibraryScreen() {
 
       <Text style={styles.sectionTitle}>Your Books</Text>
 
-      {books.length === 0 ? (
-        <Text style={styles.emptyText}>No books yet</Text>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search by title or author"
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filtersContainer}
+      >
+        {renderFilterButton("All", "all")}
+        {renderFilterButton("Planned", "planned")}
+        {renderFilterButton("Reading", "reading")}
+        {renderFilterButton("Finished", "finished")}
+      </ScrollView>
+
+      {filteredBooks.length === 0 ? (
+        <Text style={styles.emptyText}>No matching books found</Text>
       ) : (
         <View style={styles.list}>
-          {books.map((book) => {
+          {filteredBooks.map((book) => {
             const progress = getProgressPercentage(
               book.currentPage,
               book.totalPages,
@@ -273,7 +328,10 @@ export default function LibraryScreen() {
                     <Text style={styles.progressText}>
                       {progress}% completed
                     </Text>
-                    <Text style={styles.bookStatus}>Status: {book.status}</Text>
+
+                    <View style={styles.statusBadge}>
+                      <Text style={styles.statusBadgeText}>{book.status}</Text>
+                    </View>
                   </View>
                 </View>
               </Pressable>
@@ -393,6 +451,43 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
+  searchInput: {
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: "#FFFFFF",
+    marginBottom: 12,
+  },
+
+  filtersContainer: {
+    paddingBottom: 12,
+    gap: 10,
+  },
+
+  filterButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    backgroundColor: "#E5E7EB",
+  },
+
+  filterButtonActive: {
+    backgroundColor: "#6C63FF",
+  },
+
+  filterButtonText: {
+    color: "#374151",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  filterButtonTextActive: {
+    color: "#FFFFFF",
+  },
+
   emptyText: {
     fontSize: 16,
     color: "#666",
@@ -478,10 +573,19 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 
-  bookStatus: {
-    fontSize: 14,
-    color: "#6C63FF",
-    marginTop: 8,
-    fontWeight: "600",
+  statusBadge: {
+    alignSelf: "flex-start",
+    marginTop: 10,
+    backgroundColor: "#EDE9FE",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+
+  statusBadgeText: {
+    color: "#5B21B6",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "capitalize",
   },
 });
