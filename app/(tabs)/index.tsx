@@ -1,10 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
-import * as Notifications from "expo-notifications";
 import { useEffect, useState } from "react";
 import {
   Image,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,15 +10,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
 
 type BookStatus = "planned" | "reading" | "finished";
 
@@ -44,14 +33,12 @@ export default function LibraryScreen() {
   const [currentPage, setCurrentPage] = useState("");
   const [coverUri, setCoverUri] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [notificationMessage, setNotificationMessage] = useState("");
   const [progressInputs, setProgressInputs] = useState<Record<string, string>>(
     {},
   );
 
   useEffect(() => {
     loadBooks();
-    setupNotificationChannel();
   }, []);
 
   useEffect(() => {
@@ -78,115 +65,6 @@ export default function LibraryScreen() {
     }
   };
 
-  const setupNotificationChannel = async () => {
-    if (Platform.OS === "android") {
-      await Notifications.setNotificationChannelAsync("reading-reminders", {
-        name: "Reading Reminders",
-        importance: Notifications.AndroidImportance.DEFAULT,
-      });
-    }
-  };
-
-  const requestNotificationPermission = async () => {
-    const permission = await Notifications.requestPermissionsAsync();
-
-    if (!permission.granted) {
-      setNotificationMessage(
-        "Notification permission is required to enable reminders.",
-      );
-      return false;
-    }
-
-    return true;
-  };
-
-  const scheduleDailyReminder = async () => {
-    const granted = await requestNotificationPermission();
-
-    if (!granted) {
-      return;
-    }
-
-    try {
-      await Notifications.cancelAllScheduledNotificationsAsync();
-
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Time to read 📚",
-          body: "Open Novelo and continue your reading progress today.",
-        },
-        trigger:
-          Platform.OS === "android"
-            ? {
-                hour: 20,
-                minute: 0,
-                repeats: true,
-                channelId: "reading-reminders",
-              }
-            : {
-                hour: 20,
-                minute: 0,
-                repeats: true,
-              },
-      });
-
-      setNotificationMessage("Daily reminder scheduled for 20:00.");
-    } catch (error) {
-      console.log("Error scheduling daily reminder:", error);
-      setNotificationMessage("Could not schedule daily reminder.");
-    }
-  };
-
-  const scheduleTestReminder = async () => {
-    const granted = await requestNotificationPermission();
-
-    if (!granted) {
-      return;
-    }
-
-    try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Novelo test reminder",
-          body: "This is a local notification test.",
-        },
-        trigger:
-          Platform.OS === "android"
-            ? {
-                seconds: 3,
-                channelId: "reading-reminders",
-              }
-            : {
-                seconds: 3,
-              },
-      });
-
-      setNotificationMessage("Test reminder will appear in 3 seconds.");
-    } catch (error) {
-      console.log("Error scheduling test reminder:", error);
-      setNotificationMessage("Could not schedule test reminder.");
-    }
-  };
-
-  const getBookStatus = (current: number, total: number): BookStatus => {
-    if (current <= 0) return "planned";
-    if (current >= total) return "finished";
-    return "reading";
-  };
-
-  const getProgressPercentage = (current: number, total: number) => {
-    if (total <= 0) return 0;
-    return Math.round((current / total) * 100);
-  };
-
-  const totalBooks = books.length;
-  const plannedBooks = books.filter((book) => book.status === "planned").length;
-  const readingBooks = books.filter((book) => book.status === "reading").length;
-  const finishedBooks = books.filter(
-    (book) => book.status === "finished",
-  ).length;
-  const totalPagesRead = books.reduce((sum, book) => sum + book.currentPage, 0);
-
   const pickCoverImage = async () => {
     try {
       const permissionResult =
@@ -212,6 +90,17 @@ export default function LibraryScreen() {
       console.log("Error picking image:", error);
       setErrorMessage("Could not open gallery.");
     }
+  };
+
+  const getBookStatus = (current: number, total: number): BookStatus => {
+    if (current <= 0) return "planned";
+    if (current >= total) return "finished";
+    return "reading";
+  };
+
+  const getProgressPercentage = (current: number, total: number) => {
+    if (total <= 0) return 0;
+    return Math.round((current / total) * 100);
   };
 
   const handleAddBook = () => {
@@ -309,59 +198,6 @@ export default function LibraryScreen() {
     >
       <Text style={styles.title}>Novelo</Text>
       <Text style={styles.subtitle}>My Library</Text>
-
-      <View style={styles.reminderSection}>
-        <Text style={styles.reminderTitle}>Reading Reminders</Text>
-
-        <Pressable
-          style={styles.reminderButton}
-          onPress={scheduleDailyReminder}
-        >
-          <Text style={styles.reminderButtonText}>Enable Daily Reminder</Text>
-        </Pressable>
-
-        <Pressable
-          style={styles.testReminderButton}
-          onPress={scheduleTestReminder}
-        >
-          <Text style={styles.testReminderButtonText}>Send Test Reminder</Text>
-        </Pressable>
-
-        {notificationMessage ? (
-          <Text style={styles.notificationMessage}>{notificationMessage}</Text>
-        ) : null}
-      </View>
-
-      <View style={styles.statsSection}>
-        <Text style={styles.statsTitle}>Reading Statistics</Text>
-
-        <View style={styles.statsGrid}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{totalBooks}</Text>
-            <Text style={styles.statLabel}>Total Books</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{plannedBooks}</Text>
-            <Text style={styles.statLabel}>Planned</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{readingBooks}</Text>
-            <Text style={styles.statLabel}>Reading</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{finishedBooks}</Text>
-            <Text style={styles.statLabel}>Finished</Text>
-          </View>
-        </View>
-
-        <View style={styles.pagesReadCard}>
-          <Text style={styles.pagesReadValue}>{totalPagesRead}</Text>
-          <Text style={styles.pagesReadLabel}>Total Pages Read</Text>
-        </View>
-      </View>
 
       <View style={styles.form}>
         <Text style={styles.label}>Book Title</Text>
@@ -498,7 +334,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: "700",
-    marginTop: 40,
+    marginTop: 20,
     textAlign: "center",
   },
 
@@ -507,111 +343,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 24,
     textAlign: "center",
-  },
-
-  reminderSection: {
-    backgroundColor: "#F8FAFC",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-
-  reminderTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 12,
-  },
-
-  reminderButton: {
-    backgroundColor: "#7C3AED",
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-
-  reminderButtonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-
-  testReminderButton: {
-    backgroundColor: "#0F766E",
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 10,
-  },
-
-  testReminderButtonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-
-  notificationMessage: {
-    marginTop: 10,
-    fontSize: 14,
-    color: "#374151",
-    textAlign: "center",
-  },
-
-  statsSection: {
-    marginBottom: 24,
-  },
-
-  statsTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 12,
-  },
-
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-
-  statCard: {
-    width: "48%",
-    backgroundColor: "#F3F4F6",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    alignItems: "center",
-  },
-
-  statValue: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#6C63FF",
-  },
-
-  statLabel: {
-    fontSize: 14,
-    color: "#555",
-    marginTop: 6,
-  },
-
-  pagesReadCard: {
-    backgroundColor: "#EEF2FF",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-  },
-
-  pagesReadValue: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#4338CA",
-  },
-
-  pagesReadLabel: {
-    fontSize: 14,
-    color: "#555",
-    marginTop: 6,
   },
 
   form: {
