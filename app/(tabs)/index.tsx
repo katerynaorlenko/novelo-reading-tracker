@@ -42,6 +42,7 @@ export default function LibraryScreen() {
   const [errorMessage, setErrorMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterStatus>("all");
+  const [selectedStatus, setSelectedStatus] = useState<BookStatus>("planned");
 
   useEffect(() => {
     loadBooks();
@@ -104,12 +105,6 @@ export default function LibraryScreen() {
     }
   };
 
-  const getBookStatus = (current: number, total: number): BookStatus => {
-    if (current <= 0) return "planned";
-    if (current >= total) return "finished";
-    return "reading";
-  };
-
   const getProgressPercentage = (current: number, total: number) => {
     if (total <= 0) return 0;
     return Math.round((current / total) * 100);
@@ -122,7 +117,7 @@ export default function LibraryScreen() {
     }
 
     const total = Number(totalPages);
-    const current = Number(currentPage || "0");
+    let current = Number(currentPage || "0");
 
     if (Number.isNaN(total) || total <= 0) {
       setErrorMessage("Total pages must be a number greater than 0.");
@@ -134,15 +129,29 @@ export default function LibraryScreen() {
       return;
     }
 
-    const safeCurrentPage = current > total ? total : current;
+    if (selectedStatus === "planned") {
+      current = 0;
+    }
+
+    if (selectedStatus === "finished") {
+      current = total;
+    }
+
+    if (selectedStatus === "reading" && current <= 0) {
+      current = 1;
+    }
+
+    if (current > total) {
+      current = total;
+    }
 
     const newBook: Book = {
       id: Date.now().toString(),
       title: title.trim(),
       author: author.trim(),
       totalPages: total,
-      currentPage: safeCurrentPage,
-      status: getBookStatus(safeCurrentPage, total),
+      currentPage: current,
+      status: selectedStatus,
       coverUri: coverUri || undefined,
       notes: "",
       favoriteQuote: "",
@@ -158,6 +167,7 @@ export default function LibraryScreen() {
     setCurrentPage("");
     setCoverUri("");
     setErrorMessage("");
+    setSelectedStatus("planned");
   };
 
   const filteredBooks = useMemo(() => {
@@ -186,6 +196,27 @@ export default function LibraryScreen() {
           style={[
             styles.filterButtonText,
             isActive && styles.filterButtonTextActive,
+          ]}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    );
+  };
+
+  const renderStatusOption = (label: string, value: BookStatus) => {
+    const isActive = selectedStatus === value;
+
+    return (
+      <Pressable
+        key={value}
+        style={[styles.statusOption, isActive && styles.statusOptionActive]}
+        onPress={() => setSelectedStatus(value)}
+      >
+        <Text
+          style={[
+            styles.statusOptionText,
+            isActive && styles.statusOptionTextActive,
           ]}
         >
           {label}
@@ -239,6 +270,17 @@ export default function LibraryScreen() {
           onChangeText={setCurrentPage}
           keyboardType="numeric"
         />
+
+        <Text style={styles.label}>Status</Text>
+        <View style={styles.statusOptionsRow}>
+          {renderStatusOption("Planned", "planned")}
+          {renderStatusOption("Reading", "reading")}
+          {renderStatusOption("Finished", "finished")}
+        </View>
+
+        <Text style={styles.helperText}>
+          Planned sets current page to 0. Finished sets it to total pages.
+        </Text>
 
         <Text style={styles.label}>Book Cover</Text>
         <Pressable style={styles.coverButton} onPress={pickCoverImage}>
@@ -399,6 +441,41 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontSize: 16,
     backgroundColor: "#FFFFFF",
+  },
+
+  statusOptionsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+    marginTop: 4,
+  },
+
+  statusOption: {
+    flex: 1,
+    backgroundColor: "#E5E7EB",
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+
+  statusOptionActive: {
+    backgroundColor: "#6C63FF",
+  },
+
+  statusOptionText: {
+    color: "#374151",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  statusOptionTextActive: {
+    color: "#FFFFFF",
+  },
+
+  helperText: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginTop: 8,
   },
 
   coverButton: {
