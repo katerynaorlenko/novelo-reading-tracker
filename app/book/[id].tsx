@@ -2,14 +2,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    Alert,
-    Image,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 type BookStatus = "planned" | "reading" | "finished";
@@ -39,6 +39,7 @@ export default function BookDetailsScreen() {
   const [favoriteQuote, setFavoriteQuote] = useState("");
   const [thoughts, setThoughts] = useState("");
   const [summary, setSummary] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<BookStatus>("planned");
 
   useEffect(() => {
     loadBook();
@@ -60,6 +61,7 @@ export default function BookDetailsScreen() {
         setFavoriteQuote(foundBook.favoriteQuote || "");
         setThoughts(foundBook.thoughts || "");
         setSummary(foundBook.summary || "");
+        setSelectedStatus(foundBook.status);
       }
     } catch (error) {
       console.log("Error loading book details:", error);
@@ -88,6 +90,8 @@ export default function BookDetailsScreen() {
 
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedBooks));
       setBook(updatedBook);
+      setSelectedStatus(updatedBook.status);
+      setCurrentPageInput(updatedBook.currentPage.toString());
     } catch (error) {
       console.log("Error saving book changes:", error);
     }
@@ -113,6 +117,32 @@ export default function BookDetailsScreen() {
       ...book,
       currentPage: safeCurrentPage,
       status: getBookStatus(safeCurrentPage, book.totalPages),
+    };
+
+    await saveBookChanges(updatedBook);
+  };
+
+  const handleChangeStatus = async (newStatus: BookStatus) => {
+    if (!book) return;
+
+    let updatedCurrentPage = book.currentPage;
+
+    if (newStatus === "planned") {
+      updatedCurrentPage = 0;
+    }
+
+    if (newStatus === "finished") {
+      updatedCurrentPage = book.totalPages;
+    }
+
+    if (newStatus === "reading" && updatedCurrentPage <= 0) {
+      updatedCurrentPage = 1;
+    }
+
+    const updatedBook: Book = {
+      ...book,
+      status: newStatus,
+      currentPage: updatedCurrentPage,
     };
 
     await saveBookChanges(updatedBook);
@@ -168,6 +198,27 @@ export default function BookDetailsScreen() {
     ]);
   };
 
+  const renderStatusOption = (label: string, value: BookStatus) => {
+    const isActive = selectedStatus === value;
+
+    return (
+      <Pressable
+        key={value}
+        style={[styles.statusOption, isActive && styles.statusOptionActive]}
+        onPress={() => handleChangeStatus(value)}
+      >
+        <Text
+          style={[
+            styles.statusOptionText,
+            isActive && styles.statusOptionTextActive,
+          ]}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    );
+  };
+
   if (!book) {
     return (
       <View style={styles.centered}>
@@ -206,6 +257,20 @@ export default function BookDetailsScreen() {
 
         <Text style={styles.progressText}>{progress}% completed</Text>
         <Text style={styles.statusText}>Status: {book.status}</Text>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Change Status</Text>
+
+        <View style={styles.statusOptionsRow}>
+          {renderStatusOption("Planned", "planned")}
+          {renderStatusOption("Reading", "reading")}
+          {renderStatusOption("Finished", "finished")}
+        </View>
+
+        <Text style={styles.helperText}>
+          Planned sets current page to 0. Finished sets it to total pages.
+        </Text>
       </View>
 
       <View style={styles.section}>
@@ -388,6 +453,40 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     marginBottom: 12,
+  },
+
+  statusOptionsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+
+  statusOption: {
+    flex: 1,
+    backgroundColor: "#E5E7EB",
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+
+  statusOptionActive: {
+    backgroundColor: "#6C63FF",
+  },
+
+  statusOptionText: {
+    color: "#374151",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  statusOptionTextActive: {
+    color: "#FFFFFF",
+  },
+
+  helperText: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginTop: 8,
   },
 
   label: {
