@@ -167,10 +167,7 @@ export default function BookDetailsScreen() {
     if (!book) return;
 
     Alert.alert("Delete book", "Are you sure you want to delete this book?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
+      { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
@@ -344,24 +341,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-
   contentContainer: {
     padding: 24,
     paddingBottom: 40,
   },
-
   centered: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
   },
-
   loadingText: {
     fontSize: 18,
     color: "#555",
   },
-
   coverImage: {
     width: 150,
     height: 210,
@@ -369,7 +362,6 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginTop: 8,
   },
-
   coverPlaceholder: {
     width: 150,
     height: 210,
@@ -380,39 +372,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   coverPlaceholderText: {
     fontSize: 14,
     color: "#6B7280",
     fontWeight: "600",
   },
-
   title: {
     fontSize: 28,
     fontWeight: "700",
     textAlign: "center",
     marginTop: 18,
   },
-
   author: {
     fontSize: 18,
     color: "#555",
     textAlign: "center",
     marginTop: 6,
   },
-
   infoCard: {
     backgroundColor: "#F3F4F6",
     borderRadius: 16,
     padding: 16,
     marginTop: 24,
   },
-
   infoText: {
     fontSize: 16,
     color: "#333",
   },
-
   progressBarBackground: {
     height: 10,
     backgroundColor: "#E5E7EB",
@@ -420,26 +406,22 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginTop: 12,
   },
-
   progressBarFill: {
     height: "100%",
     backgroundColor: "#6C63FF",
     borderRadius: 999,
   },
-
   progressText: {
     fontSize: 14,
     color: "#555",
     marginTop: 10,
   },
-
   statusText: {
     fontSize: 15,
     color: "#6C63FF",
     marginTop: 8,
     fontWeight: "600",
   },
-
   section: {
     backgroundColor: "#F8FAFC",
     borderRadius: 16,
@@ -448,19 +430,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
-
   sectionTitle: {
     fontSize: 20,
     fontWeight: "700",
     marginBottom: 12,
   },
-
   statusOptionsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 10,
   },
-
   statusOption: {
     flex: 1,
     backgroundColor: "#E5E7EB",
@@ -468,34 +447,28 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
   },
-
   statusOptionActive: {
     backgroundColor: "#6C63FF",
   },
-
   statusOptionText: {
     color: "#374151",
     fontSize: 14,
     fontWeight: "600",
   },
-
   statusOptionTextActive: {
     color: "#FFFFFF",
   },
-
   helperText: {
     fontSize: 12,
     color: "#6B7280",
     marginTop: 8,
   },
-
   label: {
     fontSize: 14,
     fontWeight: "600",
     marginBottom: 6,
     marginTop: 8,
   },
-
   input: {
     borderWidth: 1,
     borderColor: "#D1D5DB",
@@ -505,7 +478,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: "#FFFFFF",
   },
-
   textArea: {
     borderWidth: 1,
     borderColor: "#D1D5DB",
@@ -517,7 +489,6 @@ const styles = StyleSheet.create({
     minHeight: 90,
     textAlignVertical: "top",
   },
-
   primaryButton: {
     backgroundColor: "#2563EB",
     paddingVertical: 12,
@@ -525,13 +496,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 14,
   },
-
   primaryButtonText: {
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "600",
   },
-
   deleteButton: {
     backgroundColor: "#EF4444",
     paddingVertical: 14,
@@ -539,7 +508,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 24,
   },
-
   deleteButtonText: {
     color: "#FFFFFF",
     fontSize: 16,

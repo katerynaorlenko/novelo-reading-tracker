@@ -1,17 +1,16 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "@react-navigation/native";
-import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
   View,
+  Text,
+  StyleSheet,
+  Pressable,
+  TextInput,
+  ScrollView,
+  Image,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 
 type BookStatus = "planned" | "reading" | "finished";
 type FilterStatus = "all" | BookStatus;
@@ -34,15 +33,8 @@ const STORAGE_KEY = "novelo_books";
 
 export default function LibraryScreen() {
   const [books, setBooks] = useState<Book[]>([]);
-  const [title, setTitle] = useState("");
-  const [author, setAuthor] = useState("");
-  const [totalPages, setTotalPages] = useState("");
-  const [currentPage, setCurrentPage] = useState("");
-  const [coverUri, setCoverUri] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterStatus>("all");
-  const [selectedStatus, setSelectedStatus] = useState<BookStatus>("planned");
 
   useEffect(() => {
     loadBooks();
@@ -54,120 +46,23 @@ export default function LibraryScreen() {
     }, []),
   );
 
-  useEffect(() => {
-    saveBooks();
-  }, [books]);
-
   const loadBooks = async () => {
     try {
       const savedBooks = await AsyncStorage.getItem(STORAGE_KEY);
 
       if (savedBooks) {
         setBooks(JSON.parse(savedBooks));
+      } else {
+        setBooks([]);
       }
     } catch (error) {
       console.log("Error loading books:", error);
     }
   };
 
-  const saveBooks = async () => {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(books));
-    } catch (error) {
-      console.log("Error saving books:", error);
-    }
-  };
-
-  const pickCoverImage = async () => {
-    try {
-      const permissionResult =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (!permissionResult.granted) {
-        setErrorMessage("Gallery permission is required to choose a cover.");
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [3, 4],
-        quality: 0.8,
-      });
-
-      if (!result.canceled) {
-        setCoverUri(result.assets[0].uri);
-        setErrorMessage("");
-      }
-    } catch (error) {
-      console.log("Error picking image:", error);
-      setErrorMessage("Could not open gallery.");
-    }
-  };
-
   const getProgressPercentage = (current: number, total: number) => {
     if (total <= 0) return 0;
     return Math.round((current / total) * 100);
-  };
-
-  const handleAddBook = () => {
-    if (!title.trim() || !author.trim() || !totalPages.trim()) {
-      setErrorMessage("Please fill in title, author, and total pages.");
-      return;
-    }
-
-    const total = Number(totalPages);
-    let current = Number(currentPage || "0");
-
-    if (Number.isNaN(total) || total <= 0) {
-      setErrorMessage("Total pages must be a number greater than 0.");
-      return;
-    }
-
-    if (Number.isNaN(current) || current < 0) {
-      setErrorMessage("Current page must be 0 or a positive number.");
-      return;
-    }
-
-    if (selectedStatus === "planned") {
-      current = 0;
-    }
-
-    if (selectedStatus === "finished") {
-      current = total;
-    }
-
-    if (selectedStatus === "reading" && current <= 0) {
-      current = 1;
-    }
-
-    if (current > total) {
-      current = total;
-    }
-
-    const newBook: Book = {
-      id: Date.now().toString(),
-      title: title.trim(),
-      author: author.trim(),
-      totalPages: total,
-      currentPage: current,
-      status: selectedStatus,
-      coverUri: coverUri || undefined,
-      notes: "",
-      favoriteQuote: "",
-      thoughts: "",
-      summary: "",
-    };
-
-    setBooks((prev) => [...prev, newBook]);
-
-    setTitle("");
-    setAuthor("");
-    setTotalPages("");
-    setCurrentPage("");
-    setCoverUri("");
-    setErrorMessage("");
-    setSelectedStatus("planned");
   };
 
   const filteredBooks = useMemo(() => {
@@ -204,25 +99,25 @@ export default function LibraryScreen() {
     );
   };
 
-  const renderStatusOption = (label: string, value: BookStatus) => {
-    const isActive = selectedStatus === value;
+  const getStatusBadgeStyle = (status: BookStatus) => {
+    if (status === "planned") {
+      return {
+        container: styles.plannedBadge,
+        text: styles.plannedBadgeText,
+      };
+    }
 
-    return (
-      <Pressable
-        key={value}
-        style={[styles.statusOption, isActive && styles.statusOptionActive]}
-        onPress={() => setSelectedStatus(value)}
-      >
-        <Text
-          style={[
-            styles.statusOptionText,
-            isActive && styles.statusOptionTextActive,
-          ]}
-        >
-          {label}
-        </Text>
-      </Pressable>
-    );
+    if (status === "finished") {
+      return {
+        container: styles.finishedBadge,
+        text: styles.finishedBadgeText,
+      };
+    }
+
+    return {
+      container: styles.readingBadge,
+      text: styles.readingBadgeText,
+    };
   };
 
   return (
@@ -230,98 +125,52 @@ export default function LibraryScreen() {
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.title}>Novelo</Text>
-      <Text style={styles.subtitle}>My Library</Text>
-
-      <View style={styles.form}>
-        <Text style={styles.formTitle}>Add New Book</Text>
-
-        <Text style={styles.label}>Book Title</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter book title"
-          value={title}
-          onChangeText={setTitle}
-        />
-
-        <Text style={styles.label}>Author</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter author name"
-          value={author}
-          onChangeText={setAuthor}
-        />
-
-        <Text style={styles.label}>Total Pages</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Example: 300"
-          value={totalPages}
-          onChangeText={setTotalPages}
-          keyboardType="numeric"
-        />
-
-        <Text style={styles.label}>Current Page</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Example: 50"
-          value={currentPage}
-          onChangeText={setCurrentPage}
-          keyboardType="numeric"
-        />
-
-        <Text style={styles.label}>Status</Text>
-        <View style={styles.statusOptionsRow}>
-          {renderStatusOption("Planned", "planned")}
-          {renderStatusOption("Reading", "reading")}
-          {renderStatusOption("Finished", "finished")}
-        </View>
-
-        <Text style={styles.helperText}>
-          Planned sets current page to 0. Finished sets it to total pages.
-        </Text>
-
-        <Text style={styles.label}>Book Cover</Text>
-        <Pressable style={styles.coverButton} onPress={pickCoverImage}>
-          <Text style={styles.coverButtonText}>Choose Cover</Text>
-        </Pressable>
-
-        {coverUri ? (
-          <Image source={{ uri: coverUri }} style={styles.previewImage} />
-        ) : null}
-
-        {errorMessage ? (
-          <Text style={styles.errorText}>{errorMessage}</Text>
-        ) : null}
-
-        <Pressable style={styles.button} onPress={handleAddBook}>
-          <Text style={styles.buttonText}>Save Book</Text>
-        </Pressable>
+      <View style={styles.headerBlock}>
+        <Text style={styles.title}>Novelo</Text>
+        <Text style={styles.subtitle}>My Library</Text>
       </View>
 
-      <Text style={styles.sectionTitle}>Your Books</Text>
-
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search by title or author"
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-      />
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filtersContainer}
+      <Pressable
+        style={styles.addButton}
+        onPress={() => router.push("/modal" as never)}
       >
-        {renderFilterButton("All", "all")}
-        {renderFilterButton("Planned", "planned")}
-        {renderFilterButton("Reading", "reading")}
-        {renderFilterButton("Finished", "finished")}
-      </ScrollView>
+        <Text style={styles.addButtonText}>+ Add Book</Text>
+      </Pressable>
+
+      <View style={styles.searchSection}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by title or author"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filtersContainer}
+        >
+          {renderFilterButton("All", "all")}
+          {renderFilterButton("Planned", "planned")}
+          {renderFilterButton("Reading", "reading")}
+          {renderFilterButton("Finished", "finished")}
+        </ScrollView>
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Your Books</Text>
+        <Text style={styles.sectionCount}>{filteredBooks.length}</Text>
+      </View>
 
       {filteredBooks.length === 0 ? (
-        <Text style={styles.emptyText}>No matching books found</Text>
+        <View style={styles.emptyStateCard}>
+          <Text style={styles.emptyStateTitle}>No books found</Text>
+          <Text style={styles.emptyStateText}>
+            Add a new book or change your search and filter options.
+          </Text>
+        </View>
       ) : (
         <View style={styles.list}>
           {filteredBooks.map((book) => {
@@ -329,6 +178,8 @@ export default function LibraryScreen() {
               book.currentPage,
               book.totalPages,
             );
+
+            const badgeStyles = getStatusBadgeStyle(book.status);
 
             return (
               <Pressable
@@ -351,8 +202,13 @@ export default function LibraryScreen() {
                   )}
 
                   <View style={styles.bookInfo}>
-                    <Text style={styles.bookTitle}>{book.title}</Text>
-                    <Text style={styles.bookAuthor}>{book.author}</Text>
+                    <Text numberOfLines={1} style={styles.bookTitle}>
+                      {book.title}
+                    </Text>
+
+                    <Text numberOfLines={1} style={styles.bookAuthor}>
+                      {book.author}
+                    </Text>
 
                     <Text style={styles.bookPages}>
                       {book.currentPage} / {book.totalPages} pages
@@ -367,12 +223,18 @@ export default function LibraryScreen() {
                       />
                     </View>
 
-                    <Text style={styles.progressText}>
-                      {progress}% completed
-                    </Text>
+                    <View style={styles.cardFooter}>
+                      <Text style={styles.progressText}>
+                        {progress}% completed
+                      </Text>
 
-                    <View style={styles.statusBadge}>
-                      <Text style={styles.statusBadgeText}>{book.status}</Text>
+                      <View style={[styles.statusBadge, badgeStyles.container]}>
+                        <Text
+                          style={[styles.statusBadgeText, badgeStyles.text]}
+                        >
+                          {book.status}
+                        </Text>
+                      </View>
                     </View>
                   </View>
                 </View>
@@ -392,163 +254,74 @@ const styles = StyleSheet.create({
   },
 
   contentContainer: {
-    padding: 24,
-    paddingBottom: 40,
+    padding: 20,
+    paddingBottom: 36,
+  },
+
+  headerBlock: {
+    alignItems: "center",
+    marginTop: 20,
+    marginBottom: 20,
   },
 
   title: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: "700",
-    marginTop: 20,
-    textAlign: "center",
   },
 
   subtitle: {
-    fontSize: 20,
-    marginTop: 8,
-    marginBottom: 24,
-    textAlign: "center",
-  },
-
-  form: {
-    backgroundColor: "#F8FAFC",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-
-  formTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 10,
-  },
-
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 6,
-    marginTop: 10,
-  },
-
-  input: {
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 8,
-    fontSize: 16,
-    backgroundColor: "#FFFFFF",
-  },
-
-  statusOptionsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 10,
-    marginTop: 4,
-  },
-
-  statusOption: {
-    flex: 1,
-    backgroundColor: "#E5E7EB",
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-
-  statusOptionActive: {
-    backgroundColor: "#6C63FF",
-  },
-
-  statusOptionText: {
-    color: "#374151",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-
-  statusOptionTextActive: {
-    color: "#FFFFFF",
-  },
-
-  helperText: {
-    fontSize: 12,
+    fontSize: 18,
     color: "#6B7280",
     marginTop: 8,
   },
 
-  coverButton: {
-    backgroundColor: "#0F766E",
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 4,
-  },
-
-  coverButtonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-
-  previewImage: {
-    width: 110,
-    height: 150,
-    borderRadius: 12,
-    marginTop: 12,
-    alignSelf: "center",
-  },
-
-  errorText: {
-    color: "#DC2626",
-    fontSize: 14,
-    marginTop: 8,
-    marginBottom: 8,
-    fontWeight: "500",
-  },
-
-  button: {
+  addButton: {
     backgroundColor: "#6C63FF",
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 14,
     alignItems: "center",
-    marginTop: 12,
+    marginBottom: 16,
+    shadowColor: "#6C63FF",
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 4,
   },
 
-  buttonText: {
+  addButtonText: {
     color: "#FFFFFF",
+    fontWeight: "700",
     fontSize: 16,
-    fontWeight: "600",
   },
 
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    marginBottom: 12,
+  searchSection: {
+    marginBottom: 18,
   },
 
   searchInput: {
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderColor: "#E5E7EB",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
     fontSize: 16,
     backgroundColor: "#FFFFFF",
     marginBottom: 12,
   },
 
   filtersContainer: {
-    paddingBottom: 12,
     gap: 10,
+    paddingRight: 8,
   },
 
   filterButton: {
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 999,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#F3F4F6",
   },
 
   filterButtonActive: {
@@ -565,11 +338,48 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 
-  emptyText: {
-    fontSize: 16,
-    color: "#666",
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+  },
+
+  sectionCount: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#6C63FF",
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+
+  emptyStateCard: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 18,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    alignItems: "center",
+  },
+
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+
+  emptyStateText: {
+    fontSize: 14,
+    color: "#6B7280",
     textAlign: "center",
-    marginTop: 8,
+    lineHeight: 20,
   },
 
   list: {
@@ -577,10 +387,20 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    backgroundColor: "#F3F4F6",
-    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
     padding: 14,
-    marginBottom: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+    shadowColor: "#111827",
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 3,
   },
 
   cardContent: {
@@ -589,16 +409,16 @@ const styles = StyleSheet.create({
   },
 
   bookCover: {
-    width: 85,
-    height: 120,
-    borderRadius: 12,
+    width: 84,
+    height: 118,
+    borderRadius: 14,
   },
 
   bookCoverPlaceholder: {
-    width: 85,
-    height: 120,
-    borderRadius: 12,
-    backgroundColor: "#E5E7EB",
+    width: 84,
+    height: 118,
+    borderRadius: 14,
+    backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -611,28 +431,30 @@ const styles = StyleSheet.create({
 
   bookInfo: {
     flex: 1,
+    justifyContent: "center",
   },
 
   bookTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: "700",
+    color: "#111827",
   },
 
   bookAuthor: {
     fontSize: 14,
-    color: "#555",
+    color: "#6B7280",
     marginTop: 4,
   },
 
   bookPages: {
-    fontSize: 14,
-    color: "#444",
-    marginTop: 10,
+    fontSize: 15,
+    color: "#4B5563",
+    marginTop: 14,
   },
 
   progressBarBackground: {
     height: 10,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#ECECF3",
     borderRadius: 999,
     overflow: "hidden",
     marginTop: 10,
@@ -644,25 +466,52 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
 
+  cardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 12,
+  },
+
   progressText: {
     fontSize: 13,
-    color: "#555",
-    marginTop: 8,
+    color: "#6B7280",
+    fontWeight: "500",
   },
 
   statusBadge: {
-    alignSelf: "flex-start",
-    marginTop: 10,
-    backgroundColor: "#EDE9FE",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
   },
 
   statusBadgeText: {
-    color: "#5B21B6",
     fontSize: 12,
     fontWeight: "700",
     textTransform: "capitalize",
+  },
+
+  plannedBadge: {
+    backgroundColor: "#E5E7EB",
+  },
+
+  plannedBadgeText: {
+    color: "#4B5563",
+  },
+
+  readingBadge: {
+    backgroundColor: "#EDE9FE",
+  },
+
+  readingBadgeText: {
+    color: "#5B21B6",
+  },
+
+  finishedBadge: {
+    backgroundColor: "#DCFCE7",
+  },
+
+  finishedBadgeText: {
+    color: "#166534",
   },
 });
