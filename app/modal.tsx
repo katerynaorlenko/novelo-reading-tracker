@@ -22,6 +22,7 @@ type Book = {
   totalPages: number;
   currentPage: number;
   status: BookStatus;
+  rating?: number;
   coverUri?: string;
   notes?: string;
   favoriteQuote?: string;
@@ -149,6 +150,7 @@ export default function AddBookScreen() {
       totalPages: total,
       currentPage: current,
       status: selectedStatus,
+      rating: 0,
       coverUri: coverUri || undefined,
       notes: "",
       favoriteQuote: "",

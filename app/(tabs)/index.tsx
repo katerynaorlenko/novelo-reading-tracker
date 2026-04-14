@@ -1,16 +1,16 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
+import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  TextInput,
-  ScrollView,
   Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
 
 type BookStatus = "planned" | "reading" | "finished";
 type FilterStatus = "all" | BookStatus;
@@ -22,6 +22,7 @@ type Book = {
   totalPages: number;
   currentPage: number;
   status: BookStatus;
+  rating?: number;
   coverUri?: string;
   notes?: string;
   favoriteQuote?: string;
@@ -120,6 +121,24 @@ export default function LibraryScreen() {
     };
   };
 
+  const renderStars = (rating: number = 0) => {
+    return (
+      <View style={styles.starsRow}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Text
+            key={star}
+            style={[
+              styles.star,
+              star <= rating ? styles.starFilled : styles.starEmpty,
+            ]}
+          >
+            ★
+          </Text>
+        ))}
+      </View>
+    );
+  };
+
   return (
     <ScrollView
       style={styles.container}
@@ -209,6 +228,8 @@ export default function LibraryScreen() {
                     <Text numberOfLines={1} style={styles.bookAuthor}>
                       {book.author}
                     </Text>
+
+                    {renderStars(book.rating || 0)}
 
                     <Text style={styles.bookPages}>
                       {book.currentPage} / {book.totalPages} pages
@@ -446,10 +467,28 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
+  starsRow: {
+    flexDirection: "row",
+    marginTop: 8,
+  },
+
+  star: {
+    fontSize: 16,
+    marginRight: 2,
+  },
+
+  starFilled: {
+    color: "#F59E0B",
+  },
+
+  starEmpty: {
+    color: "#D1D5DB",
+  },
+
   bookPages: {
     fontSize: 15,
     color: "#4B5563",
-    marginTop: 14,
+    marginTop: 12,
   },
 
   progressBarBackground: {
