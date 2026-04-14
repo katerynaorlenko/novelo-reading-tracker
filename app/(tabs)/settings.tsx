@@ -1,3 +1,7 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import * as Notifications from "expo-notifications";
 import { useEffect, useState } from "react";
 import {
@@ -18,12 +22,26 @@ Notifications.setNotificationHandler({
   }),
 });
 
+const REMINDER_ENABLED_KEY = "novelo_daily_reminder_enabled";
+const REMINDER_TIME_KEY = "novelo_daily_reminder_time";
+
+type ReminderTime = {
+  hour: number;
+  minute: number;
+};
+
 export default function SettingsScreen() {
   const [notificationMessage, setNotificationMessage] = useState("");
   const [dailyReminderEnabled, setDailyReminderEnabled] = useState(false);
+  const [selectedTime, setSelectedTime] = useState<ReminderTime>({
+    hour: 20,
+    minute: 0,
+  });
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   useEffect(() => {
     setupNotificationChannel();
+    loadReminderSettings();
   }, []);
 
   const setupNotificationChannel = async () => {
@@ -32,6 +50,33 @@ export default function SettingsScreen() {
         name: "Reading Reminders",
         importance: Notifications.AndroidImportance.DEFAULT,
       });
+    }
+  };
+
+  const loadReminderSettings = async () => {
+    try {
+      const savedEnabled = await AsyncStorage.getItem(REMINDER_ENABLED_KEY);
+      const savedTime = await AsyncStorage.getItem(REMINDER_TIME_KEY);
+
+      if (savedEnabled) {
+        setDailyReminderEnabled(savedEnabled === "true");
+      }
+
+      if (savedTime) {
+        const parsed = JSON.parse(savedTime) as ReminderTime;
+        setSelectedTime(parsed);
+      }
+    } catch (error) {
+      console.log("Error loading reminder settings:", error);
+    }
+  };
+
+  const saveReminderSettings = async (enabled: boolean, time: ReminderTime) => {
+    try {
+      await AsyncStorage.setItem(REMINDER_ENABLED_KEY, String(enabled));
+      await AsyncStorage.setItem(REMINDER_TIME_KEY, JSON.stringify(time));
+    } catch (error) {
+      console.log("Error saving reminder settings:", error);
     }
   };
 
@@ -55,7 +100,13 @@ export default function SettingsScreen() {
     return true;
   };
 
-  const scheduleDailyReminder = async () => {
+  const formatTime = (hour: number, minute: number) => {
+    const hh = String(hour).padStart(2, "0");
+    const mm = String(minute).padStart(2, "0");
+    return `${hh}:${mm}`;
+  };
+
+  const scheduleDailyReminder = async (time: ReminderTime) => {
     const granted = await requestNotificationPermission();
 
     if (!granted) return;
@@ -70,13 +121,16 @@ export default function SettingsScreen() {
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour: 20,
-          minute: 0,
+          hour: time.hour,
+          minute: time.minute,
         },
       });
 
       setDailyReminderEnabled(true);
-      setNotificationMessage("Daily reminder is enabled for 20:00.");
+      await saveReminderSettings(true, time);
+      setNotificationMessage(
+        `Daily reminder is enabled for ${formatTime(time.hour, time.minute)}.`,
+      );
     } catch (error) {
       console.log("Error scheduling daily reminder:", error);
       setNotificationMessage("Could not schedule daily reminder.");
@@ -92,7 +146,10 @@ export default function SettingsScreen() {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: "Novelo test reminder",
-          body: "This is a local notification test.",
+          body: `This is a local notification test for ${formatTime(
+            selectedTime.hour,
+            selectedTime.minute,
+          )}.`,
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
@@ -105,6 +162,30 @@ export default function SettingsScreen() {
     } catch (error) {
       console.log("Error scheduling test reminder:", error);
       setNotificationMessage("Could not schedule test reminder.");
+    }
+  };
+
+  const handleTimeChange = async (event: DateTimePickerEvent, date?: Date) => {
+    setShowTimePicker(false);
+
+    if (event.type === "dismissed" || !date) {
+      return;
+    }
+
+    const newTime = {
+      hour: date.getHours(),
+      minute: date.getMinutes(),
+    };
+
+    setSelectedTime(newTime);
+
+    if (dailyReminderEnabled) {
+      await scheduleDailyReminder(newTime);
+    } else {
+      await saveReminderSettings(false, newTime);
+      setNotificationMessage(
+        `Reminder time selected: ${formatTime(newTime.hour, newTime.minute)}`,
+      );
     }
   };
 
@@ -145,7 +226,31 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <Pressable style={styles.primaryButton} onPress={scheduleDailyReminder}>
+        <Text style={styles.timeTitle}>Reminder Time</Text>
+
+        <Pressable
+          style={styles.timePickerButton}
+          onPress={() => setShowTimePicker(true)}
+        >
+          <Text style={styles.timePickerButtonText}>
+            {formatTime(selectedTime.hour, selectedTime.minute)}
+          </Text>
+        </Pressable>
+
+        {showTimePicker ? (
+          <DateTimePicker
+            value={new Date(2025, 0, 1, selectedTime.hour, selectedTime.minute)}
+            mode="time"
+            is24Hour={true}
+            display="default"
+            onChange={handleTimeChange}
+          />
+        ) : null}
+
+        <Pressable
+          style={styles.primaryButton}
+          onPress={() => scheduleDailyReminder(selectedTime)}
+        >
           <Text style={styles.primaryButtonText}>Enable Daily Reminder</Text>
         </Pressable>
 
@@ -279,6 +384,26 @@ const styles = StyleSheet.create({
 
   statusBadgeTextDisabled: {
     color: "#6B7280",
+  },
+
+  timeTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+
+  timePickerButton: {
+    backgroundColor: "#EDE9FE",
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginBottom: 14,
+  },
+
+  timePickerButtonText: {
+    color: "#5B21B6",
+    fontSize: 16,
+    fontWeight: "700",
   },
 
   primaryButton: {
