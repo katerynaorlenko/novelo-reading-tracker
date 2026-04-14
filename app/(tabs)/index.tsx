@@ -66,6 +66,16 @@ export default function LibraryScreen() {
     return Math.round((current / total) * 100);
   };
 
+  const continueReadingBook = useMemo(() => {
+    const readingBooks = books.filter(
+      (book) => book.status === "reading" && book.currentPage > 0,
+    );
+
+    if (readingBooks.length === 0) return null;
+
+    return [...readingBooks].sort((a, b) => b.currentPage - a.currentPage)[0];
+  }, [books]);
+
   const filteredBooks = useMemo(() => {
     return books.filter((book) => {
       const matchesSearch =
@@ -157,6 +167,75 @@ export default function LibraryScreen() {
       >
         <Text style={styles.addButtonText}>+ Add Book</Text>
       </Pressable>
+
+      {continueReadingBook ? (
+        <Pressable
+          style={styles.continueCard}
+          onPress={() =>
+            router.push(`/book/${continueReadingBook.id}` as never)
+          }
+        >
+          <Text style={styles.continueLabel}>Continue Reading</Text>
+
+          <View style={styles.continueContent}>
+            {continueReadingBook.coverUri ? (
+              <Image
+                source={{ uri: continueReadingBook.coverUri }}
+                style={styles.continueCover}
+              />
+            ) : (
+              <View style={styles.continueCoverPlaceholder}>
+                <Text style={styles.continueCoverPlaceholderText}>
+                  No Cover
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.continueInfo}>
+              <Text numberOfLines={1} style={styles.continueTitle}>
+                {continueReadingBook.title}
+              </Text>
+
+              <Text numberOfLines={1} style={styles.continueAuthor}>
+                {continueReadingBook.author}
+              </Text>
+
+              {renderStars(continueReadingBook.rating || 0)}
+
+              <Text style={styles.continuePages}>
+                {continueReadingBook.currentPage} /{" "}
+                {continueReadingBook.totalPages} pages
+              </Text>
+
+              <View style={styles.continueProgressBackground}>
+                <View
+                  style={[
+                    styles.continueProgressFill,
+                    {
+                      width: `${getProgressPercentage(
+                        continueReadingBook.currentPage,
+                        continueReadingBook.totalPages,
+                      )}%`,
+                    },
+                  ]}
+                />
+              </View>
+
+              <Text style={styles.continueProgressText}>
+                {getProgressPercentage(
+                  continueReadingBook.currentPage,
+                  continueReadingBook.totalPages,
+                )}
+                % completed
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.continueButton}>
+            <Text style={styles.continueButtonText}>Continue</Text>
+          </View>
+        </Pressable>
+      ) : null}
 
       <View style={styles.searchSection}>
         <TextInput
@@ -316,6 +395,105 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "700",
     fontSize: 16,
+  },
+
+  continueCard: {
+    backgroundColor: "#EEF2FF",
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 18,
+  },
+
+  continueLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#4338CA",
+    marginBottom: 12,
+    textTransform: "uppercase",
+  },
+
+  continueContent: {
+    flexDirection: "row",
+    gap: 14,
+  },
+
+  continueCover: {
+    width: 82,
+    height: 116,
+    borderRadius: 14,
+  },
+
+  continueCoverPlaceholder: {
+    width: 82,
+    height: 116,
+    borderRadius: 14,
+    backgroundColor: "#DDE3F7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  continueCoverPlaceholderText: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+
+  continueInfo: {
+    flex: 1,
+    justifyContent: "center",
+  },
+
+  continueTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#111827",
+  },
+
+  continueAuthor: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginTop: 4,
+  },
+
+  continuePages: {
+    fontSize: 14,
+    color: "#374151",
+    marginTop: 10,
+  },
+
+  continueProgressBackground: {
+    height: 10,
+    backgroundColor: "#D8DEF5",
+    borderRadius: 999,
+    overflow: "hidden",
+    marginTop: 10,
+  },
+
+  continueProgressFill: {
+    height: "100%",
+    backgroundColor: "#6C63FF",
+    borderRadius: 999,
+  },
+
+  continueProgressText: {
+    fontSize: 13,
+    color: "#4B5563",
+    marginTop: 8,
+    fontWeight: "500",
+  },
+
+  continueButton: {
+    marginTop: 14,
+    backgroundColor: "#6C63FF",
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+
+  continueButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
   },
 
   searchSection: {

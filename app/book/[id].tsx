@@ -258,6 +258,27 @@ export default function BookDetailsScreen() {
     );
   };
 
+  const getStatusBadgeStyle = (status: BookStatus) => {
+    if (status === "planned") {
+      return {
+        container: styles.plannedBadge,
+        text: styles.plannedBadgeText,
+      };
+    }
+
+    if (status === "finished") {
+      return {
+        container: styles.finishedBadge,
+        text: styles.finishedBadgeText,
+      };
+    }
+
+    return {
+      container: styles.readingBadge,
+      text: styles.readingBadgeText,
+    };
+  };
+
   if (!book) {
     return (
       <View style={styles.centered}>
@@ -267,41 +288,51 @@ export default function BookDetailsScreen() {
   }
 
   const progress = getProgressPercentage(book.currentPage, book.totalPages);
+  const badgeStyles = getStatusBadgeStyle(book.status);
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
-      {book.coverUri ? (
-        <Image source={{ uri: book.coverUri }} style={styles.coverImage} />
-      ) : (
-        <View style={styles.coverPlaceholder}>
-          <Text style={styles.coverPlaceholderText}>No Cover</Text>
+      <View style={styles.heroCard}>
+        <View style={styles.heroContent}>
+          {book.coverUri ? (
+            <Image source={{ uri: book.coverUri }} style={styles.coverImage} />
+          ) : (
+            <View style={styles.coverPlaceholder}>
+              <Text style={styles.coverPlaceholderText}>No Cover</Text>
+            </View>
+          )}
+
+          <View style={styles.heroInfo}>
+            <Text style={styles.title}>{book.title}</Text>
+            <Text style={styles.author}>{book.author}</Text>
+
+            {renderRatingStars()}
+
+            <View style={[styles.statusBadge, badgeStyles.container]}>
+              <Text style={[styles.statusBadgeText, badgeStyles.text]}>
+                {book.status}
+              </Text>
+            </View>
+          </View>
         </View>
-      )}
 
-      <Text style={styles.title}>{book.title}</Text>
-      <Text style={styles.author}>{book.author}</Text>
+        <View style={styles.progressSection}>
+          <View style={styles.progressTopRow}>
+            <Text style={styles.infoText}>
+              {book.currentPage} / {book.totalPages} pages
+            </Text>
+            <Text style={styles.progressPercent}>{progress}%</Text>
+          </View>
 
-      <View style={styles.infoCard}>
-        <Text style={styles.infoText}>
-          Progress: {book.currentPage} / {book.totalPages} pages
-        </Text>
-
-        <View style={styles.progressBarBackground}>
-          <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
+          <View style={styles.progressBarBackground}>
+            <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
+          </View>
         </View>
-
-        <Text style={styles.progressText}>{progress}% completed</Text>
-        <Text style={styles.statusText}>Status: {book.status}</Text>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Book Rating</Text>
-        <Text style={styles.helperText}>Tap a star to rate this book</Text>
-        {renderRatingStars()}
       </View>
 
       <View style={styles.section}>
@@ -391,7 +422,7 @@ const styles = StyleSheet.create({
   },
 
   contentContainer: {
-    padding: 24,
+    padding: 20,
     paddingBottom: 40,
   },
 
@@ -407,21 +438,38 @@ const styles = StyleSheet.create({
     color: "#555",
   },
 
+  heroCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+    shadowColor: "#111827",
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 3,
+  },
+
+  heroContent: {
+    flexDirection: "row",
+    gap: 16,
+  },
+
   coverImage: {
-    width: 150,
-    height: 210,
+    width: 120,
+    height: 170,
     borderRadius: 16,
-    alignSelf: "center",
-    marginTop: 8,
   },
 
   coverPlaceholder: {
-    width: 150,
-    height: 210,
+    width: 120,
+    height: 170,
     borderRadius: 16,
-    alignSelf: "center",
-    marginTop: 8,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -432,82 +480,31 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
+  heroInfo: {
+    flex: 1,
+    justifyContent: "center",
+  },
+
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "700",
-    textAlign: "center",
-    marginTop: 18,
+    color: "#111827",
   },
 
   author: {
-    fontSize: 18,
-    color: "#555",
-    textAlign: "center",
-    marginTop: 6,
-  },
-
-  infoCard: {
-    backgroundColor: "#F3F4F6",
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 24,
-  },
-
-  infoText: {
     fontSize: 16,
-    color: "#333",
-  },
-
-  progressBarBackground: {
-    height: 10,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 999,
-    overflow: "hidden",
-    marginTop: 12,
-  },
-
-  progressBarFill: {
-    height: "100%",
-    backgroundColor: "#6C63FF",
-    borderRadius: 999,
-  },
-
-  progressText: {
-    fontSize: 14,
-    color: "#555",
-    marginTop: 10,
-  },
-
-  statusText: {
-    fontSize: 15,
-    color: "#6C63FF",
-    marginTop: 8,
-    fontWeight: "600",
-  },
-
-  section: {
-    backgroundColor: "#F8FAFC",
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 20,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 12,
+    color: "#6B7280",
+    marginTop: 6,
   },
 
   ratingRow: {
     flexDirection: "row",
-    marginTop: 4,
+    marginTop: 10,
   },
 
   ratingStar: {
-    fontSize: 34,
-    marginRight: 8,
+    fontSize: 30,
+    marginRight: 6,
   },
 
   ratingStarFilled: {
@@ -516,6 +513,95 @@ const styles = StyleSheet.create({
 
   ratingStarEmpty: {
     color: "#D1D5DB",
+  },
+
+  statusBadge: {
+    alignSelf: "flex-start",
+    marginTop: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "capitalize",
+  },
+
+  plannedBadge: {
+    backgroundColor: "#E5E7EB",
+  },
+
+  plannedBadgeText: {
+    color: "#4B5563",
+  },
+
+  readingBadge: {
+    backgroundColor: "#EDE9FE",
+  },
+
+  readingBadgeText: {
+    color: "#5B21B6",
+  },
+
+  finishedBadge: {
+    backgroundColor: "#DCFCE7",
+  },
+
+  finishedBadgeText: {
+    color: "#166534",
+  },
+
+  progressSection: {
+    marginTop: 18,
+  },
+
+  progressTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  infoText: {
+    fontSize: 15,
+    color: "#4B5563",
+    fontWeight: "500",
+  },
+
+  progressPercent: {
+    fontSize: 14,
+    color: "#6C63FF",
+    fontWeight: "700",
+  },
+
+  progressBarBackground: {
+    height: 10,
+    backgroundColor: "#ECECF3",
+    borderRadius: 999,
+    overflow: "hidden",
+    marginTop: 10,
+  },
+
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: "#6C63FF",
+    borderRadius: 999,
+  },
+
+  section: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 18,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 12,
   },
 
   statusOptionsRow: {
@@ -596,16 +682,18 @@ const styles = StyleSheet.create({
   },
 
   deleteButton: {
-    backgroundColor: "#EF4444",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: "center",
-    marginTop: 24,
+    marginTop: 22,
   },
 
   deleteButtonText: {
-    color: "#FFFFFF",
+    color: "#DC2626",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });
