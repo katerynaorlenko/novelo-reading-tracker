@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 
@@ -24,10 +25,16 @@ Notifications.setNotificationHandler({
 
 const REMINDER_ENABLED_KEY = "novelo_daily_reminder_enabled";
 const REMINDER_TIME_KEY = "novelo_daily_reminder_time";
+const READING_GOAL_KEY = "novelo_reading_goal";
 
 type ReminderTime = {
   hour: number;
   minute: number;
+};
+
+type ReadingGoal = {
+  booksPerYear: number;
+  pagesPerDay: number;
 };
 
 export default function SettingsScreen() {
@@ -39,9 +46,14 @@ export default function SettingsScreen() {
   });
   const [showTimePicker, setShowTimePicker] = useState(false);
 
+  const [booksPerYear, setBooksPerYear] = useState("12");
+  const [pagesPerDay, setPagesPerDay] = useState("30");
+  const [goalMessage, setGoalMessage] = useState("");
+
   useEffect(() => {
     setupNotificationChannel();
     loadReminderSettings();
+    loadReadingGoal();
   }, []);
 
   const setupNotificationChannel = async () => {
@@ -71,12 +83,61 @@ export default function SettingsScreen() {
     }
   };
 
+  const loadReadingGoal = async () => {
+    try {
+      const savedGoal = await AsyncStorage.getItem(READING_GOAL_KEY);
+
+      if (savedGoal) {
+        const parsed: ReadingGoal = JSON.parse(savedGoal);
+        setBooksPerYear(String(parsed.booksPerYear));
+        setPagesPerDay(String(parsed.pagesPerDay));
+      }
+    } catch (error) {
+      console.log("Error loading reading goal:", error);
+    }
+  };
+
   const saveReminderSettings = async (enabled: boolean, time: ReminderTime) => {
     try {
       await AsyncStorage.setItem(REMINDER_ENABLED_KEY, String(enabled));
       await AsyncStorage.setItem(REMINDER_TIME_KEY, JSON.stringify(time));
     } catch (error) {
       console.log("Error saving reminder settings:", error);
+    }
+  };
+
+  const saveReadingGoal = async () => {
+    setGoalMessage("");
+
+    const booksGoal = Number(booksPerYear);
+    const pagesGoal = Number(pagesPerDay);
+
+    if (!Number.isInteger(booksGoal) || booksGoal <= 0) {
+      setGoalMessage("Books per year must be a whole number greater than 0.");
+      return;
+    }
+
+    if (!Number.isInteger(pagesGoal) || pagesGoal <= 0) {
+      setGoalMessage("Pages per day must be a whole number greater than 0.");
+      return;
+    }
+
+    if (booksGoal > 500 || pagesGoal > 5000) {
+      setGoalMessage("Please choose realistic goal values.");
+      return;
+    }
+
+    try {
+      const goal: ReadingGoal = {
+        booksPerYear: booksGoal,
+        pagesPerDay: pagesGoal,
+      };
+
+      await AsyncStorage.setItem(READING_GOAL_KEY, JSON.stringify(goal));
+      setGoalMessage("Reading goals saved successfully.");
+    } catch (error) {
+      console.log("Error saving reading goal:", error);
+      setGoalMessage("Could not save reading goals.");
     }
   };
 
@@ -267,6 +328,39 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Reading Goals</Text>
+        <Text style={styles.sectionDescription}>
+          Set simple goals to turn reading into a consistent habit.
+        </Text>
+
+        <Text style={styles.label}>Books per year</Text>
+        <TextInput
+          style={styles.input}
+          value={booksPerYear}
+          onChangeText={setBooksPerYear}
+          keyboardType="numeric"
+          placeholder="Example: 12"
+        />
+
+        <Text style={styles.label}>Pages per day</Text>
+        <TextInput
+          style={styles.input}
+          value={pagesPerDay}
+          onChangeText={setPagesPerDay}
+          keyboardType="numeric"
+          placeholder="Example: 30"
+        />
+
+        <Pressable style={styles.primaryButton} onPress={saveReadingGoal}>
+          <Text style={styles.primaryButtonText}>Save Reading Goals</Text>
+        </Pressable>
+
+        {goalMessage ? (
+          <Text style={styles.notificationMessage}>{goalMessage}</Text>
+        ) : null}
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.sectionTitle}>App Preferences</Text>
         <Text style={styles.preferenceItem}>
           • Notifications for reading reminders
@@ -404,6 +498,24 @@ const styles = StyleSheet.create({
     color: "#5B21B6",
     fontSize: 16,
     fontWeight: "700",
+  },
+
+  label: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 6,
+    marginTop: 4,
+  },
+
+  input: {
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: "#FFFFFF",
+    marginBottom: 12,
   },
 
   primaryButton: {

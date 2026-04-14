@@ -149,6 +149,9 @@ export default function LibraryScreen() {
     );
   };
 
+  const isLibraryEmpty = books.length === 0;
+  const isFilteredEmpty = !isLibraryEmpty && filteredBooks.length === 0;
+
   return (
     <ScrollView
       style={styles.container}
@@ -237,36 +240,63 @@ export default function LibraryScreen() {
         </Pressable>
       ) : null}
 
-      <View style={styles.searchSection}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search by title or author"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
+      {!isLibraryEmpty ? (
+        <>
+          <View style={styles.searchSection}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by title or author"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtersContainer}
-        >
-          {renderFilterButton("All", "all")}
-          {renderFilterButton("Planned", "planned")}
-          {renderFilterButton("Reading", "reading")}
-          {renderFilterButton("Finished", "finished")}
-        </ScrollView>
-      </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filtersContainer}
+            >
+              {renderFilterButton("All", "all")}
+              {renderFilterButton("Planned", "planned")}
+              {renderFilterButton("Reading", "reading")}
+              {renderFilterButton("Finished", "finished")}
+            </ScrollView>
+          </View>
 
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Your Books</Text>
-        <Text style={styles.sectionCount}>{filteredBooks.length}</Text>
-      </View>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Your Books</Text>
+            <Text style={styles.sectionCount}>{filteredBooks.length}</Text>
+          </View>
+        </>
+      ) : null}
 
-      {filteredBooks.length === 0 ? (
+      {isLibraryEmpty ? (
+        <View style={styles.emptyLibraryCard}>
+          <View style={styles.emptyIllustration}>
+            <Text style={styles.emptyEmoji}>📚</Text>
+          </View>
+
+          <Text style={styles.emptyLibraryTitle}>
+            Start your reading journey
+          </Text>
+          <Text style={styles.emptyLibraryText}>
+            Build your personal library, track progress, save notes, and turn
+            reading into a clear daily habit.
+          </Text>
+
+          <Pressable
+            style={styles.emptyLibraryButton}
+            onPress={() => router.push("/modal" as never)}
+          >
+            <Text style={styles.emptyLibraryButtonText}>
+              Add Your First Book
+            </Text>
+          </Pressable>
+        </View>
+      ) : isFilteredEmpty ? (
         <View style={styles.emptyStateCard}>
           <Text style={styles.emptyStateTitle}>No books found</Text>
           <Text style={styles.emptyStateText}>
-            Add a new book or change your search and filter options.
+            Try another search or change the selected filter.
           </Text>
         </View>
       ) : (
@@ -557,6 +587,59 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
+  },
+
+  emptyLibraryCard: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 22,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    alignItems: "center",
+    marginTop: 10,
+  },
+
+  emptyIllustration: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: "#EEF2FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 18,
+  },
+
+  emptyEmoji: {
+    fontSize: 36,
+  },
+
+  emptyLibraryTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    textAlign: "center",
+    color: "#111827",
+    marginBottom: 10,
+  },
+
+  emptyLibraryText: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 21,
+    marginBottom: 18,
+  },
+
+  emptyLibraryButton: {
+    backgroundColor: "#6C63FF",
+    paddingVertical: 13,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+  },
+
+  emptyLibraryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
   },
 
   emptyStateCard: {

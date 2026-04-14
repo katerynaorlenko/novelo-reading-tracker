@@ -20,19 +20,31 @@ type Book = {
   summary?: string;
 };
 
+type ReadingGoal = {
+  booksPerYear: number;
+  pagesPerDay: number;
+};
+
 const STORAGE_KEY = "novelo_books";
+const READING_GOAL_KEY = "novelo_reading_goal";
 const MAX_TOTAL_PAGES = 5000;
 
 export default function StatisticsScreen() {
   const [books, setBooks] = useState<Book[]>([]);
+  const [readingGoal, setReadingGoal] = useState<ReadingGoal>({
+    booksPerYear: 12,
+    pagesPerDay: 30,
+  });
 
   useEffect(() => {
     loadBooks();
+    loadReadingGoal();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       loadBooks();
+      loadReadingGoal();
     }, []),
   );
 
@@ -42,9 +54,23 @@ export default function StatisticsScreen() {
 
       if (savedBooks) {
         setBooks(JSON.parse(savedBooks));
+      } else {
+        setBooks([]);
       }
     } catch (error) {
       console.log("Error loading books:", error);
+    }
+  };
+
+  const loadReadingGoal = async () => {
+    try {
+      const savedGoal = await AsyncStorage.getItem(READING_GOAL_KEY);
+
+      if (savedGoal) {
+        setReadingGoal(JSON.parse(savedGoal));
+      }
+    } catch (error) {
+      console.log("Error loading reading goal:", error);
     }
   };
 
@@ -104,6 +130,14 @@ export default function StatisticsScreen() {
             ).toFixed(1),
           );
 
+    const booksGoalProgress =
+      readingGoal.booksPerYear <= 0
+        ? 0
+        : Math.min(
+            100,
+            Math.round((finishedBooks / readingGoal.booksPerYear) * 100),
+          );
+
     return {
       totalBooks,
       plannedBooks,
@@ -115,8 +149,9 @@ export default function StatisticsScreen() {
       averageProgress,
       averageRating,
       ratedBooksCount,
+      booksGoalProgress,
     };
-  }, [books]);
+  }, [books, readingGoal]);
 
   const renderStars = (rating: number) => {
     const rounded = Math.round(rating);
@@ -149,6 +184,30 @@ export default function StatisticsScreen() {
       <View style={styles.heroCard}>
         <Text style={styles.heroValue}>{stats.completionRate}%</Text>
         <Text style={styles.heroLabel}>Completion Rate</Text>
+      </View>
+
+      <View style={styles.goalCard}>
+        <Text style={styles.goalTitle}>Reading Goal</Text>
+        <Text style={styles.goalText}>
+          {stats.finishedBooks} / {readingGoal.booksPerYear} books this year
+        </Text>
+
+        <View style={styles.goalProgressBackground}>
+          <View
+            style={[
+              styles.goalProgressFill,
+              { width: `${stats.booksGoalProgress}%` },
+            ]}
+          />
+        </View>
+
+        <Text style={styles.goalPercent}>
+          {stats.booksGoalProgress}% reached
+        </Text>
+
+        <Text style={styles.goalHint}>
+          Daily page goal: {readingGoal.pagesPerDay} pages
+        </Text>
       </View>
 
       <View style={styles.statsGrid}>
@@ -270,6 +329,54 @@ const styles = StyleSheet.create({
   heroLabel: {
     fontSize: 15,
     color: "#555",
+    marginTop: 6,
+  },
+
+  goalCard: {
+    backgroundColor: "#F5F3FF",
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: "#DDD6FE",
+  },
+
+  goalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#5B21B6",
+    marginBottom: 8,
+  },
+
+  goalText: {
+    fontSize: 15,
+    color: "#374151",
+    marginBottom: 12,
+  },
+
+  goalProgressBackground: {
+    height: 12,
+    backgroundColor: "#E9D5FF",
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+
+  goalProgressFill: {
+    height: "100%",
+    backgroundColor: "#7C3AED",
+    borderRadius: 999,
+  },
+
+  goalPercent: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#5B21B6",
+    marginTop: 10,
+  },
+
+  goalHint: {
+    fontSize: 13,
+    color: "#6B7280",
     marginTop: 6,
   },
 
