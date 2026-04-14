@@ -12,6 +12,7 @@ type Book = {
   totalPages: number;
   currentPage: number;
   status: BookStatus;
+  rating?: number;
   coverUri?: string;
   notes?: string;
   favoriteQuote?: string;
@@ -20,6 +21,7 @@ type Book = {
 };
 
 const STORAGE_KEY = "novelo_books";
+const MAX_TOTAL_PAGES = 5000;
 
 export default function StatisticsScreen() {
   const [books, setBooks] = useState<Book[]>([]);
@@ -47,22 +49,31 @@ export default function StatisticsScreen() {
   };
 
   const stats = useMemo(() => {
-    const totalBooks = books.length;
-    const plannedBooks = books.filter(
+    const validBooks = books.filter(
+      (book) =>
+        book.totalPages > 0 &&
+        book.totalPages <= MAX_TOTAL_PAGES &&
+        book.currentPage >= 0 &&
+        book.currentPage <= book.totalPages,
+    );
+
+    const totalBooks = validBooks.length;
+    const plannedBooks = validBooks.filter(
       (book) => book.status === "planned",
     ).length;
-    const readingBooks = books.filter(
+    const readingBooks = validBooks.filter(
       (book) => book.status === "reading",
     ).length;
-    const finishedBooks = books.filter(
+    const finishedBooks = validBooks.filter(
       (book) => book.status === "finished",
     ).length;
 
-    const totalPagesRead = books.reduce(
+    const totalPagesRead = validBooks.reduce(
       (sum, book) => sum + book.currentPage,
       0,
     );
-    const totalPagesInLibrary = books.reduce(
+
+    const totalPagesInLibrary = validBooks.reduce(
       (sum, book) => sum + book.totalPages,
       0,
     );
@@ -71,9 +82,27 @@ export default function StatisticsScreen() {
       totalBooks === 0 ? 0 : Math.round((finishedBooks / totalBooks) * 100);
 
     const averageProgress =
-      totalPagesInLibrary === 0
+      validBooks.length === 0
         ? 0
-        : Math.round((totalPagesRead / totalPagesInLibrary) * 100);
+        : Math.round(
+            validBooks.reduce(
+              (sum, book) => sum + (book.currentPage / book.totalPages) * 100,
+              0,
+            ) / validBooks.length,
+          );
+
+    const ratedBooks = validBooks.filter((book) => (book.rating || 0) > 0);
+    const ratedBooksCount = ratedBooks.length;
+
+    const averageRating =
+      ratedBooksCount === 0
+        ? 0
+        : Number(
+            (
+              ratedBooks.reduce((sum, book) => sum + (book.rating || 0), 0) /
+              ratedBooksCount
+            ).toFixed(1),
+          );
 
     return {
       totalBooks,
@@ -84,8 +113,30 @@ export default function StatisticsScreen() {
       totalPagesInLibrary,
       completionRate,
       averageProgress,
+      averageRating,
+      ratedBooksCount,
     };
   }, [books]);
+
+  const renderStars = (rating: number) => {
+    const rounded = Math.round(rating);
+
+    return (
+      <View style={styles.starsRow}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Text
+            key={star}
+            style={[
+              styles.star,
+              star <= rounded ? styles.starFilled : styles.starEmpty,
+            ]}
+          >
+            ★
+          </Text>
+        ))}
+      </View>
+    );
+  };
 
   return (
     <ScrollView
@@ -144,6 +195,23 @@ export default function StatisticsScreen() {
           </Text>
           <Text style={styles.summaryLabel}>Reading vs Finished</Text>
         </View>
+      </View>
+
+      <View style={styles.ratingCard}>
+        <Text style={styles.ratingTitle}>Library Rating</Text>
+
+        {stats.ratedBooksCount === 0 ? (
+          <Text style={styles.ratingEmptyText}>No rated books yet</Text>
+        ) : (
+          <>
+            <Text style={styles.ratingValue}>{stats.averageRating} / 5</Text>
+            {renderStars(stats.averageRating)}
+            <Text style={styles.ratingSubtext}>
+              Based on {stats.ratedBooksCount} rated book
+              {stats.ratedBooksCount > 1 ? "s" : ""}
+            </Text>
+          </>
+        )}
       </View>
 
       <View style={styles.infoCard}>
@@ -280,6 +348,59 @@ const styles = StyleSheet.create({
     color: "#555",
     marginTop: 6,
     textAlign: "center",
+  },
+
+  ratingCard: {
+    backgroundColor: "#FFF7ED",
+    borderRadius: 14,
+    padding: 18,
+    alignItems: "center",
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+  },
+
+  ratingTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 10,
+    color: "#9A3412",
+  },
+
+  ratingValue: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#C2410C",
+  },
+
+  starsRow: {
+    flexDirection: "row",
+    marginTop: 8,
+  },
+
+  star: {
+    fontSize: 24,
+    marginHorizontal: 2,
+  },
+
+  starFilled: {
+    color: "#F59E0B",
+  },
+
+  starEmpty: {
+    color: "#D1D5DB",
+  },
+
+  ratingSubtext: {
+    fontSize: 13,
+    color: "#7C2D12",
+    marginTop: 8,
+    textAlign: "center",
+  },
+
+  ratingEmptyText: {
+    fontSize: 14,
+    color: "#7C2D12",
   },
 
   infoCard: {
