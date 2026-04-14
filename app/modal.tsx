@@ -3,14 +3,14 @@ import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useState } from "react";
 import {
-    Alert,
-    Image,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 type BookStatus = "planned" | "reading" | "finished";
@@ -30,6 +30,7 @@ type Book = {
 };
 
 const STORAGE_KEY = "novelo_books";
+const MAX_TOTAL_PAGES = 5000;
 
 export default function AddBookScreen() {
   const [title, setTitle] = useState("");
@@ -88,7 +89,19 @@ export default function AddBookScreen() {
     );
   };
 
+  const resetForm = () => {
+    setTitle("");
+    setAuthor("");
+    setTotalPages("");
+    setCurrentPage("");
+    setCoverUri("");
+    setSelectedStatus("planned");
+    setErrorMessage("");
+  };
+
   const handleSaveBook = async () => {
+    setErrorMessage("");
+
     if (!title.trim() || !author.trim() || !totalPages.trim()) {
       setErrorMessage("Please fill in title, author, and total pages.");
       return;
@@ -97,13 +110,23 @@ export default function AddBookScreen() {
     const total = Number(totalPages);
     let current = Number(currentPage || "0");
 
-    if (Number.isNaN(total) || total <= 0) {
-      setErrorMessage("Total pages must be a number greater than 0.");
+    if (!Number.isInteger(total) || total <= 0) {
+      setErrorMessage("Total pages must be a whole number greater than 0.");
       return;
     }
 
-    if (Number.isNaN(current) || current < 0) {
-      setErrorMessage("Current page must be 0 or a positive number.");
+    if (total > MAX_TOTAL_PAGES) {
+      setErrorMessage(`Total pages cannot be more than ${MAX_TOTAL_PAGES}.`);
+      return;
+    }
+
+    if (!Number.isInteger(current) || current < 0) {
+      setErrorMessage("Current page must be a whole number from 0 upward.");
+      return;
+    }
+
+    if (current > total) {
+      setErrorMessage("Current page cannot be greater than total pages.");
       return;
     }
 
@@ -117,10 +140,6 @@ export default function AddBookScreen() {
 
     if (selectedStatus === "reading" && current <= 0) {
       current = 1;
-    }
-
-    if (current > total) {
-      current = total;
     }
 
     const newBook: Book = {
@@ -145,6 +164,7 @@ export default function AddBookScreen() {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedBooks));
 
       Alert.alert("Saved", "Book was added to your library.");
+      resetForm();
       router.back();
     } catch (error) {
       console.log("Error saving book:", error);
@@ -157,6 +177,7 @@ export default function AddBookScreen() {
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
       <Text style={styles.title}>Add New Book</Text>
       <Text style={styles.subtitle}>
@@ -183,7 +204,7 @@ export default function AddBookScreen() {
         <Text style={styles.label}>Total Pages</Text>
         <TextInput
           style={styles.input}
-          placeholder="Example: 300"
+          placeholder="Example: 320"
           value={totalPages}
           onChangeText={setTotalPages}
           keyboardType="numeric"
@@ -192,7 +213,7 @@ export default function AddBookScreen() {
         <Text style={styles.label}>Current Page</Text>
         <TextInput
           style={styles.input}
-          placeholder="Example: 50"
+          placeholder="Example: 40"
           value={currentPage}
           onChangeText={setCurrentPage}
           keyboardType="numeric"
