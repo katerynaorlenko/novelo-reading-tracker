@@ -27,6 +27,9 @@ type Book = {
   favoriteQuote?: string;
   thoughts?: string;
   summary?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  updatedAt?: string;
 };
 
 type StreakData = {
@@ -75,6 +78,17 @@ export default function BookDetailsScreen() {
     } catch (error) {
       console.log("Error loading book details:", error);
     }
+  };
+
+  const formatDisplayDate = (value?: string) => {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "—";
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
   };
 
   const getBookStatus = (current: number, total: number): BookStatus => {
@@ -163,10 +177,21 @@ export default function BookDetailsScreen() {
     const safeCurrentPage =
       newCurrentPage > book.totalPages ? book.totalPages : newCurrentPage;
 
+    const nextStatus = getBookStatus(safeCurrentPage, book.totalPages);
+    const now = new Date().toISOString();
+
     const updatedBook: Book = {
       ...book,
       currentPage: safeCurrentPage,
-      status: getBookStatus(safeCurrentPage, book.totalPages),
+      status: nextStatus,
+      updatedAt: now,
+      startedAt:
+        (nextStatus === "reading" || nextStatus === "finished") &&
+        !book.startedAt
+          ? now
+          : book.startedAt,
+      finishedAt:
+        nextStatus === "finished" ? book.finishedAt || now : undefined,
     };
 
     await saveBookChanges(updatedBook);
@@ -190,10 +215,20 @@ export default function BookDetailsScreen() {
       updatedCurrentPage = 1;
     }
 
+    const now = new Date().toISOString();
+
     const updatedBook: Book = {
       ...book,
       status: newStatus,
       currentPage: updatedCurrentPage,
+      updatedAt: now,
+      startedAt:
+        (newStatus === "reading" || newStatus === "finished") && !book.startedAt
+          ? now
+          : newStatus === "planned"
+            ? undefined
+            : book.startedAt,
+      finishedAt: newStatus === "finished" ? book.finishedAt || now : undefined,
     };
 
     await saveBookChanges(updatedBook);
@@ -205,6 +240,7 @@ export default function BookDetailsScreen() {
     const updatedBook: Book = {
       ...book,
       rating: newRating,
+      updatedAt: new Date().toISOString(),
     };
 
     await saveBookChanges(updatedBook);
@@ -220,6 +256,7 @@ export default function BookDetailsScreen() {
       thoughts,
       summary,
       rating,
+      updatedAt: new Date().toISOString(),
     };
 
     await saveBookChanges(updatedBook);
@@ -379,6 +416,31 @@ export default function BookDetailsScreen() {
           <View style={styles.progressBarBackground}>
             <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
           </View>
+        </View>
+      </View>
+
+      <View style={styles.metaCard}>
+        <Text style={styles.metaTitle}>Reading Timeline</Text>
+
+        <View style={styles.metaRow}>
+          <Text style={styles.metaLabel}>Started reading</Text>
+          <Text style={styles.metaValue}>
+            {formatDisplayDate(book.startedAt)}
+          </Text>
+        </View>
+
+        <View style={styles.metaRow}>
+          <Text style={styles.metaLabel}>Finished on</Text>
+          <Text style={styles.metaValue}>
+            {formatDisplayDate(book.finishedAt)}
+          </Text>
+        </View>
+
+        <View style={styles.metaRow}>
+          <Text style={styles.metaLabel}>Last updated</Text>
+          <Text style={styles.metaValue}>
+            {formatDisplayDate(book.updatedAt)}
+          </Text>
         </View>
       </View>
 
@@ -634,6 +696,40 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: "#6C63FF",
     borderRadius: 999,
+  },
+
+  metaCard: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 18,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+
+  metaTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
+
+  metaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 6,
+  },
+
+  metaLabel: {
+    fontSize: 14,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+
+  metaValue: {
+    fontSize: 14,
+    color: "#111827",
+    fontWeight: "600",
   },
 
   section: {

@@ -28,6 +28,9 @@ type Book = {
   favoriteQuote?: string;
   thoughts?: string;
   summary?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  updatedAt?: string;
 };
 
 const STORAGE_KEY = "novelo_books";
@@ -143,6 +146,8 @@ export default function AddBookScreen() {
       current = 1;
     }
 
+    const now = new Date().toISOString();
+
     const newBook: Book = {
       id: Date.now().toString(),
       title: title.trim(),
@@ -156,6 +161,12 @@ export default function AddBookScreen() {
       favoriteQuote: "",
       thoughts: "",
       summary: "",
+      startedAt:
+        selectedStatus === "reading" || selectedStatus === "finished"
+          ? now
+          : undefined,
+      finishedAt: selectedStatus === "finished" ? now : undefined,
+      updatedAt: now,
     };
 
     try {
