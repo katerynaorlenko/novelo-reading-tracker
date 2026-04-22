@@ -1,8 +1,20 @@
 import { Tabs } from "expo-router";
+import AnimatedTabBar from "../../src/components/AnimatedTabBar";
 
 export default function TabsLayout() {
   return (
-    <Tabs>
+    <Tabs
+      tabBar={(props) => <AnimatedTabBar {...props} />}
+      screenOptions={{
+        headerTitleStyle: {
+          fontSize: 18,
+          fontWeight: "700",
+        },
+        tabBarStyle: {
+          display: "none",
+        },
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
@@ -10,6 +22,7 @@ export default function TabsLayout() {
           headerTitle: "Library",
         }}
       />
+
       <Tabs.Screen
         name="statistics"
         options={{
@@ -17,6 +30,7 @@ export default function TabsLayout() {
           headerTitle: "Statistics",
         }}
       />
+
       <Tabs.Screen
         name="settings"
         options={{
