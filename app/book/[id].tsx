@@ -29,7 +29,13 @@ type Book = {
   summary?: string;
 };
 
+type StreakData = {
+  count: number;
+  lastDate: string;
+};
+
 const STORAGE_KEY = "novelo_books";
+const STREAK_KEY = "novelo_reading_streak";
 
 export default function BookDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -101,6 +107,46 @@ export default function BookDetailsScreen() {
     }
   };
 
+  const updateStreak = async () => {
+    try {
+      const today = new Date();
+      const todayStr = today.toDateString();
+
+      const saved = await AsyncStorage.getItem(STREAK_KEY);
+
+      let streakData: StreakData = {
+        count: 0,
+        lastDate: "",
+      };
+
+      if (saved) {
+        streakData = JSON.parse(saved);
+      }
+
+      if (streakData.lastDate === todayStr) {
+        return;
+      }
+
+      const yesterday = new Date();
+      yesterday.setDate(today.getDate() - 1);
+
+      const lastDate =
+        streakData.lastDate !== "" ? new Date(streakData.lastDate) : null;
+
+      if (lastDate && lastDate.toDateString() === yesterday.toDateString()) {
+        streakData.count += 1;
+      } else {
+        streakData.count = 1;
+      }
+
+      streakData.lastDate = todayStr;
+
+      await AsyncStorage.setItem(STREAK_KEY, JSON.stringify(streakData));
+    } catch (error) {
+      console.log("Error updating streak:", error);
+    }
+  };
+
   const handleUpdateProgress = async () => {
     if (!book) return;
 
@@ -124,6 +170,7 @@ export default function BookDetailsScreen() {
     };
 
     await saveBookChanges(updatedBook);
+    await updateStreak();
   };
 
   const handleChangeStatus = async (newStatus: BookStatus) => {

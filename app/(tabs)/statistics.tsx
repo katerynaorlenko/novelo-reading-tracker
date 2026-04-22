@@ -25,8 +25,14 @@ type ReadingGoal = {
   pagesPerDay: number;
 };
 
+type StreakData = {
+  count: number;
+  lastDate: string;
+};
+
 const STORAGE_KEY = "novelo_books";
 const READING_GOAL_KEY = "novelo_reading_goal";
+const STREAK_KEY = "novelo_reading_streak";
 const MAX_TOTAL_PAGES = 5000;
 
 export default function StatisticsScreen() {
@@ -35,16 +41,19 @@ export default function StatisticsScreen() {
     booksPerYear: 12,
     pagesPerDay: 30,
   });
+  const [streak, setStreak] = useState(0);
 
   useEffect(() => {
     loadBooks();
     loadReadingGoal();
+    loadStreak();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       loadBooks();
       loadReadingGoal();
+      loadStreak();
     }, []),
   );
 
@@ -71,6 +80,21 @@ export default function StatisticsScreen() {
       }
     } catch (error) {
       console.log("Error loading reading goal:", error);
+    }
+  };
+
+  const loadStreak = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(STREAK_KEY);
+
+      if (saved) {
+        const parsed: StreakData = JSON.parse(saved);
+        setStreak(parsed.count || 0);
+      } else {
+        setStreak(0);
+      }
+    } catch (error) {
+      console.log("Error loading streak:", error);
     }
   };
 
@@ -207,6 +231,16 @@ export default function StatisticsScreen() {
 
         <Text style={styles.goalHint}>
           Daily page goal: {readingGoal.pagesPerDay} pages
+        </Text>
+      </View>
+
+      <View style={styles.streakCard}>
+        <Text style={styles.streakTitle}>Reading Streak</Text>
+        <Text style={styles.streakValue}>
+          🔥 {streak} day{streak === 1 ? "" : "s"}
+        </Text>
+        <Text style={styles.streakHint}>
+          Keep updating your reading daily to maintain your streak.
         </Text>
       </View>
 
@@ -377,6 +411,34 @@ const styles = StyleSheet.create({
   goalHint: {
     fontSize: 13,
     color: "#6B7280",
+    marginTop: 6,
+  },
+
+  streakCard: {
+    backgroundColor: "#FEF3C7",
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+
+  streakTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#92400E",
+    marginBottom: 6,
+  },
+
+  streakValue: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#B45309",
+  },
+
+  streakHint: {
+    fontSize: 13,
+    color: "#78350F",
     marginTop: 6,
   },
 
