@@ -13,6 +13,7 @@ import {
 } from "react-native";
 
 type BookStatus = "planned" | "reading" | "finished";
+type DetailsTab = "overview" | "notes";
 
 type Book = {
   id: string;
@@ -30,15 +31,11 @@ type Book = {
   startedAt?: string;
   finishedAt?: string;
   updatedAt?: string;
-};
-
-type StreakData = {
-  count: number;
-  lastDate: string;
+  lastReadAt?: string;
+  readingHistory?: string[];
 };
 
 const STORAGE_KEY = "novelo_books";
-const STREAK_KEY = "novelo_reading_streak";
 
 export default function BookDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -51,6 +48,7 @@ export default function BookDetailsScreen() {
   const [summary, setSummary] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<BookStatus>("planned");
   const [rating, setRating] = useState(0);
+  const [activeTab, setActiveTab] = useState<DetailsTab>("overview");
 
   useEffect(() => {
     loadBook();
@@ -59,7 +57,6 @@ export default function BookDetailsScreen() {
   const loadBook = async () => {
     try {
       const savedBooks = await AsyncStorage.getItem(STORAGE_KEY);
-
       if (!savedBooks) return;
 
       const parsedBooks: Book[] = JSON.parse(savedBooks);
@@ -82,8 +79,10 @@ export default function BookDetailsScreen() {
 
   const formatDisplayDate = (value?: string) => {
     if (!value) return "—";
+
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "—";
+
     return date.toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "short",
@@ -112,52 +111,13 @@ export default function BookDetailsScreen() {
       );
 
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedBooks));
+
       setBook(updatedBook);
       setSelectedStatus(updatedBook.status);
       setCurrentPageInput(updatedBook.currentPage.toString());
       setRating(updatedBook.rating || 0);
     } catch (error) {
       console.log("Error saving book changes:", error);
-    }
-  };
-
-  const updateStreak = async () => {
-    try {
-      const today = new Date();
-      const todayStr = today.toDateString();
-
-      const saved = await AsyncStorage.getItem(STREAK_KEY);
-
-      let streakData: StreakData = {
-        count: 0,
-        lastDate: "",
-      };
-
-      if (saved) {
-        streakData = JSON.parse(saved);
-      }
-
-      if (streakData.lastDate === todayStr) {
-        return;
-      }
-
-      const yesterday = new Date();
-      yesterday.setDate(today.getDate() - 1);
-
-      const lastDate =
-        streakData.lastDate !== "" ? new Date(streakData.lastDate) : null;
-
-      if (lastDate && lastDate.toDateString() === yesterday.toDateString()) {
-        streakData.count += 1;
-      } else {
-        streakData.count = 1;
-      }
-
-      streakData.lastDate = todayStr;
-
-      await AsyncStorage.setItem(STREAK_KEY, JSON.stringify(streakData));
-    } catch (error) {
-      console.log("Error updating streak:", error);
     }
   };
 
@@ -185,6 +145,8 @@ export default function BookDetailsScreen() {
       currentPage: safeCurrentPage,
       status: nextStatus,
       updatedAt: now,
+      lastReadAt: now,
+      readingHistory: [...(book.readingHistory || []), now],
       startedAt:
         (nextStatus === "reading" || nextStatus === "finished") &&
         !book.startedAt
@@ -195,7 +157,7 @@ export default function BookDetailsScreen() {
     };
 
     await saveBookChanges(updatedBook);
-    await updateStreak();
+    Alert.alert("Updated", "Reading progress updated.");
   };
 
   const handleChangeStatus = async (newStatus: BookStatus) => {
@@ -267,10 +229,7 @@ export default function BookDetailsScreen() {
     if (!book) return;
 
     Alert.alert("Delete book", "Are you sure you want to delete this book?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
+      { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
@@ -280,7 +239,6 @@ export default function BookDetailsScreen() {
             const parsedBooks: Book[] = savedBooks
               ? JSON.parse(savedBooks)
               : [];
-
             const updatedBooks = parsedBooks.filter(
               (item) => item.id !== book.id,
             );
@@ -419,103 +377,154 @@ export default function BookDetailsScreen() {
         </View>
       </View>
 
-      <View style={styles.metaCard}>
-        <Text style={styles.metaTitle}>Reading Timeline</Text>
-
-        <View style={styles.metaRow}>
-          <Text style={styles.metaLabel}>Started reading</Text>
-          <Text style={styles.metaValue}>
-            {formatDisplayDate(book.startedAt)}
+      <View style={styles.segmentedControl}>
+        <Pressable
+          style={[
+            styles.segmentButton,
+            activeTab === "overview" && styles.segmentButtonActive,
+          ]}
+          onPress={() => setActiveTab("overview")}
+        >
+          <Text
+            style={[
+              styles.segmentButtonText,
+              activeTab === "overview" && styles.segmentButtonTextActive,
+            ]}
+          >
+            Overview
           </Text>
-        </View>
+        </Pressable>
 
-        <View style={styles.metaRow}>
-          <Text style={styles.metaLabel}>Finished on</Text>
-          <Text style={styles.metaValue}>
-            {formatDisplayDate(book.finishedAt)}
+        <Pressable
+          style={[
+            styles.segmentButton,
+            activeTab === "notes" && styles.segmentButtonActive,
+          ]}
+          onPress={() => setActiveTab("notes")}
+        >
+          <Text
+            style={[
+              styles.segmentButtonText,
+              activeTab === "notes" && styles.segmentButtonTextActive,
+            ]}
+          >
+            Notes
           </Text>
-        </View>
-
-        <View style={styles.metaRow}>
-          <Text style={styles.metaLabel}>Last updated</Text>
-          <Text style={styles.metaValue}>
-            {formatDisplayDate(book.updatedAt)}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Change Status</Text>
-
-        <View style={styles.statusOptionsRow}>
-          {renderStatusOption("Planned", "planned")}
-          {renderStatusOption("Reading", "reading")}
-          {renderStatusOption("Finished", "finished")}
-        </View>
-
-        <Text style={styles.helperText}>
-          Planned sets current page to 0. Finished sets it to total pages.
-        </Text>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Update Progress</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter current page"
-          value={currentPageInput}
-          onChangeText={setCurrentPageInput}
-          keyboardType="numeric"
-        />
-
-        <Pressable style={styles.primaryButton} onPress={handleUpdateProgress}>
-          <Text style={styles.primaryButtonText}>Update Progress</Text>
         </Pressable>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Notes</Text>
+      {activeTab === "overview" ? (
+        <>
+          <View style={styles.metaCard}>
+            <Text style={styles.metaTitle}>Reading Timeline</Text>
 
-        <Text style={styles.label}>Notes</Text>
-        <TextInput
-          style={styles.textArea}
-          placeholder="Write your notes about this book..."
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-        />
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Started reading</Text>
+              <Text style={styles.metaValue}>
+                {formatDisplayDate(book.startedAt)}
+              </Text>
+            </View>
 
-        <Text style={styles.label}>Favorite Quote</Text>
-        <TextInput
-          style={styles.textArea}
-          placeholder="Add your favorite quote..."
-          value={favoriteQuote}
-          onChangeText={setFavoriteQuote}
-          multiline
-        />
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Finished on</Text>
+              <Text style={styles.metaValue}>
+                {formatDisplayDate(book.finishedAt)}
+              </Text>
+            </View>
 
-        <Text style={styles.label}>Thoughts</Text>
-        <TextInput
-          style={styles.textArea}
-          placeholder="Write your thoughts..."
-          value={thoughts}
-          onChangeText={setThoughts}
-          multiline
-        />
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Last updated</Text>
+              <Text style={styles.metaValue}>
+                {formatDisplayDate(book.updatedAt)}
+              </Text>
+            </View>
 
-        <Text style={styles.label}>Summary</Text>
-        <TextInput
-          style={styles.textArea}
-          placeholder="Write a short summary..."
-          value={summary}
-          onChangeText={setSummary}
-          multiline
-        />
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Last read</Text>
+              <Text style={styles.metaValue}>
+                {formatDisplayDate(book.lastReadAt)}
+              </Text>
+            </View>
+          </View>
 
-        <Pressable style={styles.primaryButton} onPress={handleSaveNotes}>
-          <Text style={styles.primaryButtonText}>Save Notes</Text>
-        </Pressable>
-      </View>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Change Status</Text>
+
+            <View style={styles.statusOptionsRow}>
+              {renderStatusOption("Planned", "planned")}
+              {renderStatusOption("Reading", "reading")}
+              {renderStatusOption("Finished", "finished")}
+            </View>
+
+            <Text style={styles.helperText}>
+              Planned sets current page to 0. Finished sets it to total pages.
+            </Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Update Progress</Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="Enter current page"
+              value={currentPageInput}
+              onChangeText={setCurrentPageInput}
+              keyboardType="numeric"
+            />
+
+            <Pressable
+              style={styles.primaryButton}
+              onPress={handleUpdateProgress}
+            >
+              <Text style={styles.primaryButtonText}>Update Progress</Text>
+            </Pressable>
+          </View>
+        </>
+      ) : (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Notes</Text>
+
+          <Text style={styles.label}>Notes</Text>
+          <TextInput
+            style={styles.textArea}
+            placeholder="Write your notes about this book..."
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+          />
+
+          <Text style={styles.label}>Favorite Quote</Text>
+          <TextInput
+            style={styles.textArea}
+            placeholder="Add your favorite quote..."
+            value={favoriteQuote}
+            onChangeText={setFavoriteQuote}
+            multiline
+          />
+
+          <Text style={styles.label}>Thoughts</Text>
+          <TextInput
+            style={styles.textArea}
+            placeholder="Write your thoughts..."
+            value={thoughts}
+            onChangeText={setThoughts}
+            multiline
+          />
+
+          <Text style={styles.label}>Summary</Text>
+          <TextInput
+            style={styles.textArea}
+            placeholder="Write a short summary..."
+            value={summary}
+            onChangeText={setSummary}
+            multiline
+          />
+
+          <Pressable style={styles.primaryButton} onPress={handleSaveNotes}>
+            <Text style={styles.primaryButtonText}>Save Notes</Text>
+          </Pressable>
+        </View>
+      )}
 
       <Pressable style={styles.deleteButton} onPress={handleDeleteBook}>
         <Text style={styles.deleteButtonText}>Delete Book</Text>
@@ -525,27 +534,15 @@ export default function BookDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-
-  contentContainer: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  contentContainer: { padding: 20, paddingBottom: 140 },
   centered: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
   },
-
-  loadingText: {
-    fontSize: 18,
-    color: "#555",
-  },
+  loadingText: { fontSize: 18, color: "#555" },
 
   heroCard: {
     backgroundColor: "#FFFFFF",
@@ -554,26 +551,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#EEF2F7",
     shadowColor: "#111827",
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.06,
     shadowRadius: 18,
     elevation: 3,
   },
 
-  heroContent: {
-    flexDirection: "row",
-    gap: 16,
-  },
-
-  coverImage: {
-    width: 120,
-    height: 170,
-    borderRadius: 16,
-  },
-
+  heroContent: { flexDirection: "row", gap: 16 },
+  coverImage: { width: 120, height: 170, borderRadius: 16 },
   coverPlaceholder: {
     width: 120,
     height: 170,
@@ -582,47 +567,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  coverPlaceholderText: { fontSize: 14, color: "#6B7280", fontWeight: "600" },
+  heroInfo: { flex: 1, justifyContent: "center" },
+  title: { fontSize: 26, fontWeight: "700", color: "#111827" },
+  author: { fontSize: 16, color: "#6B7280", marginTop: 6 },
 
-  coverPlaceholderText: {
-    fontSize: 14,
-    color: "#6B7280",
-    fontWeight: "600",
-  },
-
-  heroInfo: {
-    flex: 1,
-    justifyContent: "center",
-  },
-
-  title: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#111827",
-  },
-
-  author: {
-    fontSize: 16,
-    color: "#6B7280",
-    marginTop: 6,
-  },
-
-  ratingRow: {
-    flexDirection: "row",
-    marginTop: 10,
-  },
-
-  ratingStar: {
-    fontSize: 30,
-    marginRight: 6,
-  },
-
-  ratingStarFilled: {
-    color: "#F59E0B",
-  },
-
-  ratingStarEmpty: {
-    color: "#D1D5DB",
-  },
+  ratingRow: { flexDirection: "row", marginTop: 10 },
+  ratingStar: { fontSize: 30, marginRight: 6 },
+  ratingStarFilled: { color: "#F59E0B" },
+  ratingStarEmpty: { color: "#D1D5DB" },
 
   statusBadge: {
     alignSelf: "flex-start",
@@ -631,59 +584,26 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
   },
-
   statusBadgeText: {
     fontSize: 12,
     fontWeight: "700",
     textTransform: "capitalize",
   },
+  plannedBadge: { backgroundColor: "#E5E7EB" },
+  plannedBadgeText: { color: "#4B5563" },
+  readingBadge: { backgroundColor: "#EDE9FE" },
+  readingBadgeText: { color: "#5B21B6" },
+  finishedBadge: { backgroundColor: "#DCFCE7" },
+  finishedBadgeText: { color: "#166534" },
 
-  plannedBadge: {
-    backgroundColor: "#E5E7EB",
-  },
-
-  plannedBadgeText: {
-    color: "#4B5563",
-  },
-
-  readingBadge: {
-    backgroundColor: "#EDE9FE",
-  },
-
-  readingBadgeText: {
-    color: "#5B21B6",
-  },
-
-  finishedBadge: {
-    backgroundColor: "#DCFCE7",
-  },
-
-  finishedBadgeText: {
-    color: "#166534",
-  },
-
-  progressSection: {
-    marginTop: 18,
-  },
-
+  progressSection: { marginTop: 18 },
   progressTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-
-  infoText: {
-    fontSize: 15,
-    color: "#4B5563",
-    fontWeight: "500",
-  },
-
-  progressPercent: {
-    fontSize: 14,
-    color: "#6C63FF",
-    fontWeight: "700",
-  },
-
+  infoText: { fontSize: 15, color: "#4B5563", fontWeight: "500" },
+  progressPercent: { fontSize: 14, color: "#6C63FF", fontWeight: "700" },
   progressBarBackground: {
     height: 10,
     backgroundColor: "#ECECF3",
@@ -691,68 +611,62 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginTop: 10,
   },
-
   progressBarFill: {
     height: "100%",
     backgroundColor: "#6C63FF",
     borderRadius: 999,
   },
 
+  segmentedControl: {
+    flexDirection: "row",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 16,
+    padding: 4,
+    marginTop: 18,
+    marginBottom: 2,
+  },
+  segmentButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  segmentButtonActive: { backgroundColor: "#6C63FF" },
+  segmentButtonText: { fontSize: 14, fontWeight: "700", color: "#6B7280" },
+  segmentButtonTextActive: { color: "#FFFFFF" },
+
   metaCard: {
     backgroundColor: "#F8FAFC",
     borderRadius: 18,
     padding: 16,
-    marginTop: 18,
+    marginTop: 16,
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
-
-  metaTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 12,
-  },
-
+  metaTitle: { fontSize: 20, fontWeight: "700", marginBottom: 12 },
   metaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 6,
   },
-
-  metaLabel: {
-    fontSize: 14,
-    color: "#6B7280",
-    fontWeight: "600",
-  },
-
-  metaValue: {
-    fontSize: 14,
-    color: "#111827",
-    fontWeight: "600",
-  },
+  metaLabel: { fontSize: 14, color: "#6B7280", fontWeight: "600" },
+  metaValue: { fontSize: 14, color: "#111827", fontWeight: "600" },
 
   section: {
     backgroundColor: "#F8FAFC",
     borderRadius: 18,
     padding: 16,
-    marginTop: 18,
+    marginTop: 16,
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
-
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 12,
-  },
-
+  sectionTitle: { fontSize: 20, fontWeight: "700", marginBottom: 12 },
   statusOptionsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 10,
   },
-
   statusOption: {
     flex: 1,
     backgroundColor: "#E5E7EB",
@@ -760,34 +674,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
   },
-
-  statusOptionActive: {
-    backgroundColor: "#6C63FF",
-  },
-
-  statusOptionText: {
-    color: "#374151",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-
-  statusOptionTextActive: {
-    color: "#FFFFFF",
-  },
-
-  helperText: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 8,
-  },
-
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 6,
-    marginTop: 8,
-  },
-
+  statusOptionActive: { backgroundColor: "#6C63FF" },
+  statusOptionText: { color: "#374151", fontSize: 14, fontWeight: "600" },
+  statusOptionTextActive: { color: "#FFFFFF" },
+  helperText: { fontSize: 12, color: "#6B7280", marginTop: 8 },
+  label: { fontSize: 14, fontWeight: "600", marginBottom: 6, marginTop: 8 },
   input: {
     borderWidth: 1,
     borderColor: "#D1D5DB",
@@ -797,7 +688,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: "#FFFFFF",
   },
-
   textArea: {
     borderWidth: 1,
     borderColor: "#D1D5DB",
@@ -809,7 +699,6 @@ const styles = StyleSheet.create({
     minHeight: 90,
     textAlignVertical: "top",
   },
-
   primaryButton: {
     backgroundColor: "#2563EB",
     paddingVertical: 12,
@@ -817,13 +706,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 14,
   },
-
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-
+  primaryButtonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
   deleteButton: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
@@ -833,10 +716,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 22,
   },
-
-  deleteButtonText: {
-    color: "#DC2626",
-    fontSize: 16,
-    fontWeight: "700",
-  },
+  deleteButtonText: { color: "#DC2626", fontSize: 16, fontWeight: "700" },
 });

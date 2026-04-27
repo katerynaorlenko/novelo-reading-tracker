@@ -14,6 +14,7 @@ import {
 
 type BookStatus = "planned" | "reading" | "finished";
 type FilterStatus = "all" | BookStatus;
+type SortType = "newest" | "progress" | "rating" | "title";
 
 type Book = {
   id: string;
@@ -28,6 +29,11 @@ type Book = {
   favoriteQuote?: string;
   thoughts?: string;
   summary?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  updatedAt?: string;
+  lastReadAt?: string;
+  readingHistory?: string[];
 };
 
 const STORAGE_KEY = "novelo_books";
@@ -36,6 +42,7 @@ export default function LibraryScreen() {
   const [books, setBooks] = useState<Book[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterStatus>("all");
+  const [sortBy, setSortBy] = useState<SortType>("newest");
 
   useEffect(() => {
     loadBooks();
@@ -50,12 +57,7 @@ export default function LibraryScreen() {
   const loadBooks = async () => {
     try {
       const savedBooks = await AsyncStorage.getItem(STORAGE_KEY);
-
-      if (savedBooks) {
-        setBooks(JSON.parse(savedBooks));
-      } else {
-        setBooks([]);
-      }
+      setBooks(savedBooks ? JSON.parse(savedBooks) : []);
     } catch (error) {
       console.log("Error loading books:", error);
     }
@@ -66,6 +68,21 @@ export default function LibraryScreen() {
     return Math.round((current / total) * 100);
   };
 
+  const formatShortDate = (value?: string) => {
+    if (!value) return "Not updated yet";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return "Not updated yet";
+    }
+
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+    });
+  };
+
   const continueReadingBook = useMemo(() => {
     const readingBooks = books.filter(
       (book) => book.status === "reading" && book.currentPage > 0,
@@ -73,11 +90,20 @@ export default function LibraryScreen() {
 
     if (readingBooks.length === 0) return null;
 
-    return [...readingBooks].sort((a, b) => b.currentPage - a.currentPage)[0];
+    return [...readingBooks].sort((a, b) => {
+      const aDate = new Date(
+        a.lastReadAt || a.updatedAt || Number(a.id),
+      ).getTime();
+      const bDate = new Date(
+        b.lastReadAt || b.updatedAt || Number(b.id),
+      ).getTime();
+
+      return bDate - aDate;
+    })[0];
   }, [books]);
 
-  const filteredBooks = useMemo(() => {
-    return books.filter((book) => {
+  const filteredAndSortedBooks = useMemo(() => {
+    const filtered = books.filter((book) => {
       const matchesSearch =
         book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         book.author.toLowerCase().includes(searchQuery.toLowerCase());
@@ -87,7 +113,33 @@ export default function LibraryScreen() {
 
       return matchesSearch && matchesFilter;
     });
-  }, [books, searchQuery, activeFilter]);
+
+    const sorted = [...filtered];
+
+    if (sortBy === "progress") {
+      return sorted.sort((a, b) => {
+        const progressA = a.totalPages > 0 ? a.currentPage / a.totalPages : 0;
+        const progressB = b.totalPages > 0 ? b.currentPage / b.totalPages : 0;
+
+        return progressB - progressA;
+      });
+    }
+
+    if (sortBy === "rating") {
+      return sorted.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    }
+
+    if (sortBy === "title") {
+      return sorted.sort((a, b) => a.title.localeCompare(b.title));
+    }
+
+    return sorted.sort((a, b) => {
+      const aDate = new Date(a.updatedAt || Number(a.id)).getTime();
+      const bDate = new Date(b.updatedAt || Number(b.id)).getTime();
+
+      return bDate - aDate;
+    });
+  }, [books, searchQuery, activeFilter, sortBy]);
 
   const renderFilterButton = (label: string, value: FilterStatus) => {
     const isActive = activeFilter === value;
@@ -102,6 +154,27 @@ export default function LibraryScreen() {
           style={[
             styles.filterButtonText,
             isActive && styles.filterButtonTextActive,
+          ]}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    );
+  };
+
+  const renderSortButton = (label: string, value: SortType) => {
+    const isActive = sortBy === value;
+
+    return (
+      <Pressable
+        key={value}
+        style={[styles.sortButton, isActive && styles.sortButtonActive]}
+        onPress={() => setSortBy(value)}
+      >
+        <Text
+          style={[
+            styles.sortButtonText,
+            isActive && styles.sortButtonTextActive,
           ]}
         >
           {label}
@@ -150,7 +223,8 @@ export default function LibraryScreen() {
   };
 
   const isLibraryEmpty = books.length === 0;
-  const isFilteredEmpty = !isLibraryEmpty && filteredBooks.length === 0;
+  const isFilteredEmpty =
+    !isLibraryEmpty && filteredAndSortedBooks.length === 0;
 
   return (
     <ScrollView
@@ -231,6 +305,10 @@ export default function LibraryScreen() {
                 )}
                 % completed
               </Text>
+
+              <Text style={styles.lastUpdatedText}>
+                Last read: {formatShortDate(continueReadingBook.lastReadAt)}
+              </Text>
             </View>
           </View>
 
@@ -260,11 +338,28 @@ export default function LibraryScreen() {
               {renderFilterButton("Reading", "reading")}
               {renderFilterButton("Finished", "finished")}
             </ScrollView>
+
+            <View style={styles.sortSection}>
+              <Text style={styles.sortTitle}>Sort by</Text>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.sortContainer}
+              >
+                {renderSortButton("Newest", "newest")}
+                {renderSortButton("Progress", "progress")}
+                {renderSortButton("Rating", "rating")}
+                {renderSortButton("A–Z", "title")}
+              </ScrollView>
+            </View>
           </View>
 
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Your Books</Text>
-            <Text style={styles.sectionCount}>{filteredBooks.length}</Text>
+            <Text style={styles.sectionCount}>
+              {filteredAndSortedBooks.length}
+            </Text>
           </View>
         </>
       ) : null}
@@ -296,12 +391,13 @@ export default function LibraryScreen() {
         <View style={styles.emptyStateCard}>
           <Text style={styles.emptyStateTitle}>No books found</Text>
           <Text style={styles.emptyStateText}>
-            Try another search or change the selected filter.
+            Try another search, change the filter, or choose another sorting
+            option.
           </Text>
         </View>
       ) : (
         <View style={styles.list}>
-          {filteredBooks.map((book) => {
+          {filteredAndSortedBooks.map((book) => {
             const progress = getProgressPercentage(
               book.currentPage,
               book.totalPages,
@@ -312,7 +408,10 @@ export default function LibraryScreen() {
             return (
               <Pressable
                 key={book.id}
-                style={styles.card}
+                style={[
+                  styles.card,
+                  book.status === "reading" && styles.activeReadingCard,
+                ]}
                 onPress={() => router.push(`/book/${book.id}` as never)}
               >
                 <View style={styles.cardContent}>
@@ -353,6 +452,10 @@ export default function LibraryScreen() {
                       />
                     </View>
 
+                    <Text style={styles.lastUpdatedText}>
+                      Last updated: {formatShortDate(book.updatedAt)}
+                    </Text>
+
                     <View style={styles.cardFooter}>
                       <Text style={styles.progressText}>
                         {progress}% completed
@@ -385,7 +488,7 @@ const styles = StyleSheet.create({
 
   contentContainer: {
     padding: 20,
-    paddingBottom: 36,
+    paddingBottom: 140,
   },
 
   headerBlock: {
@@ -408,7 +511,7 @@ const styles = StyleSheet.create({
   addButton: {
     backgroundColor: "#6C63FF",
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 18,
     alignItems: "center",
     marginBottom: 16,
     shadowColor: "#6C63FF",
@@ -429,7 +532,7 @@ const styles = StyleSheet.create({
 
   continueCard: {
     backgroundColor: "#EEF2FF",
-    borderRadius: 18,
+    borderRadius: 24,
     padding: 16,
     marginBottom: 18,
   },
@@ -450,13 +553,13 @@ const styles = StyleSheet.create({
   continueCover: {
     width: 82,
     height: 116,
-    borderRadius: 14,
+    borderRadius: 16,
   },
 
   continueCoverPlaceholder: {
     width: 82,
     height: 116,
-    borderRadius: 14,
+    borderRadius: 16,
     backgroundColor: "#DDE3F7",
     alignItems: "center",
     justifyContent: "center",
@@ -515,7 +618,7 @@ const styles = StyleSheet.create({
   continueButton: {
     marginTop: 14,
     backgroundColor: "#6C63FF",
-    borderRadius: 12,
+    borderRadius: 16,
     paddingVertical: 12,
     alignItems: "center",
   },
@@ -533,7 +636,7 @@ const styles = StyleSheet.create({
   searchInput: {
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    borderRadius: 14,
+    borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 13,
     fontSize: 16,
@@ -564,6 +667,43 @@ const styles = StyleSheet.create({
   },
 
   filterButtonTextActive: {
+    color: "#FFFFFF",
+  },
+
+  sortSection: {
+    marginTop: 14,
+  },
+
+  sortTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#6B7280",
+    marginBottom: 8,
+  },
+
+  sortContainer: {
+    gap: 8,
+    paddingRight: 8,
+  },
+
+  sortButton: {
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "#F3F4F6",
+  },
+
+  sortButtonActive: {
+    backgroundColor: "#111827",
+  },
+
+  sortButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#6B7280",
+  },
+
+  sortButtonTextActive: {
     color: "#FFFFFF",
   },
 
@@ -670,7 +810,7 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
+    borderRadius: 22,
     padding: 14,
     marginBottom: 14,
     borderWidth: 1,
@@ -685,6 +825,11 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 
+  activeReadingCard: {
+    borderColor: "#C4B5FD",
+    backgroundColor: "#FCFBFF",
+  },
+
   cardContent: {
     flexDirection: "row",
     gap: 14,
@@ -693,13 +838,13 @@ const styles = StyleSheet.create({
   bookCover: {
     width: 84,
     height: 118,
-    borderRadius: 14,
+    borderRadius: 16,
   },
 
   bookCoverPlaceholder: {
     width: 84,
     height: 118,
-    borderRadius: 14,
+    borderRadius: 16,
     backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
@@ -766,11 +911,17 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
 
+  lastUpdatedText: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginTop: 8,
+  },
+
   cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 12,
+    marginTop: 10,
   },
 
   progressText: {

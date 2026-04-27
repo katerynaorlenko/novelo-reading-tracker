@@ -1,35 +1,28 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import DateTimePicker, {
-  DateTimePickerEvent,
-} from "@react-native-community/datetimepicker";
-import * as Notifications from "expo-notifications";
-import { useEffect, useState } from "react";
-import {
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
+type BookStatus = "planned" | "reading" | "finished";
 
-const REMINDER_ENABLED_KEY = "novelo_daily_reminder_enabled";
-const REMINDER_TIME_KEY = "novelo_daily_reminder_time";
-const READING_GOAL_KEY = "novelo_reading_goal";
-
-type ReminderTime = {
-  hour: number;
-  minute: number;
+type Book = {
+  id: string;
+  title: string;
+  author: string;
+  totalPages: number;
+  currentPage: number;
+  status: BookStatus;
+  rating?: number;
+  coverUri?: string;
+  notes?: string;
+  favoriteQuote?: string;
+  thoughts?: string;
+  summary?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  updatedAt?: string;
+  lastReadAt?: string;
+  readingHistory?: string[];
 };
 
 type ReadingGoal = {
@@ -37,49 +30,35 @@ type ReadingGoal = {
   pagesPerDay: number;
 };
 
-export default function SettingsScreen() {
-  const [notificationMessage, setNotificationMessage] = useState("");
-  const [dailyReminderEnabled, setDailyReminderEnabled] = useState(false);
-  const [selectedTime, setSelectedTime] = useState<ReminderTime>({
-    hour: 20,
-    minute: 0,
-  });
-  const [showTimePicker, setShowTimePicker] = useState(false);
+const STORAGE_KEY = "novelo_books";
+const READING_GOAL_KEY = "novelo_reading_goal";
+const MAX_TOTAL_PAGES = 5000;
 
-  const [booksPerYear, setBooksPerYear] = useState("12");
-  const [pagesPerDay, setPagesPerDay] = useState("30");
-  const [goalMessage, setGoalMessage] = useState("");
+export default function StatisticsScreen() {
+  const [books, setBooks] = useState<Book[]>([]);
+  const [readingGoal, setReadingGoal] = useState<ReadingGoal>({
+    booksPerYear: 12,
+    pagesPerDay: 30,
+  });
 
   useEffect(() => {
-    setupNotificationChannel();
-    loadReminderSettings();
+    loadBooks();
     loadReadingGoal();
   }, []);
 
-  const setupNotificationChannel = async () => {
-    if (Platform.OS === "android") {
-      await Notifications.setNotificationChannelAsync("reading-reminders", {
-        name: "Reading Reminders",
-        importance: Notifications.AndroidImportance.DEFAULT,
-      });
-    }
-  };
+  useFocusEffect(
+    useCallback(() => {
+      loadBooks();
+      loadReadingGoal();
+    }, []),
+  );
 
-  const loadReminderSettings = async () => {
+  const loadBooks = async () => {
     try {
-      const savedEnabled = await AsyncStorage.getItem(REMINDER_ENABLED_KEY);
-      const savedTime = await AsyncStorage.getItem(REMINDER_TIME_KEY);
-
-      if (savedEnabled) {
-        setDailyReminderEnabled(savedEnabled === "true");
-      }
-
-      if (savedTime) {
-        const parsed = JSON.parse(savedTime) as ReminderTime;
-        setSelectedTime(parsed);
-      }
+      const savedBooks = await AsyncStorage.getItem(STORAGE_KEY);
+      setBooks(savedBooks ? JSON.parse(savedBooks) : []);
     } catch (error) {
-      console.log("Error loading reminder settings:", error);
+      console.log("Error loading books:", error);
     }
   };
 
@@ -88,305 +67,324 @@ export default function SettingsScreen() {
       const savedGoal = await AsyncStorage.getItem(READING_GOAL_KEY);
 
       if (savedGoal) {
-        const parsed: ReadingGoal = JSON.parse(savedGoal);
-        setBooksPerYear(String(parsed.booksPerYear));
-        setPagesPerDay(String(parsed.pagesPerDay));
+        setReadingGoal(JSON.parse(savedGoal));
       }
     } catch (error) {
       console.log("Error loading reading goal:", error);
     }
   };
 
-  const saveReminderSettings = async (enabled: boolean, time: ReminderTime) => {
-    try {
-      await AsyncStorage.setItem(REMINDER_ENABLED_KEY, String(enabled));
-      await AsyncStorage.setItem(REMINDER_TIME_KEY, JSON.stringify(time));
-    } catch (error) {
-      console.log("Error saving reminder settings:", error);
-    }
+  const normalizeDate = (date: Date) => {
+    const normalized = new Date(date);
+    normalized.setHours(0, 0, 0, 0);
+    return normalized;
   };
 
-  const saveReadingGoal = async () => {
-    setGoalMessage("");
+  const calculateStreak = (history: string[]) => {
+    if (history.length === 0) return 0;
 
-    const booksGoal = Number(booksPerYear);
-    const pagesGoal = Number(pagesPerDay);
+    const uniqueDays = Array.from(
+      new Set(
+        history
+          .map((date) => {
+            const parsed = new Date(date);
 
-    if (!Number.isInteger(booksGoal) || booksGoal <= 0) {
-      setGoalMessage("Books per year must be a whole number greater than 0.");
-      return;
+            if (Number.isNaN(parsed.getTime())) {
+              return null;
+            }
+
+            return normalizeDate(parsed).toISOString();
+          })
+          .filter(Boolean) as string[],
+      ),
+    )
+      .map((date) => new Date(date))
+      .sort((a, b) => b.getTime() - a.getTime());
+
+    if (uniqueDays.length === 0) return 0;
+
+    const today = normalizeDate(new Date());
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    const firstDay = uniqueDays[0];
+
+    if (
+      firstDay.getTime() !== today.getTime() &&
+      firstDay.getTime() !== yesterday.getTime()
+    ) {
+      return 0;
     }
 
-    if (!Number.isInteger(pagesGoal) || pagesGoal <= 0) {
-      setGoalMessage("Pages per day must be a whole number greater than 0.");
-      return;
+    let streak = 1;
+    let previousDay = firstDay;
+
+    for (let i = 1; i < uniqueDays.length; i++) {
+      const currentDay = uniqueDays[i];
+      const expectedPreviousDay = new Date(previousDay);
+      expectedPreviousDay.setDate(previousDay.getDate() - 1);
+
+      if (currentDay.getTime() === expectedPreviousDay.getTime()) {
+        streak += 1;
+        previousDay = currentDay;
+      } else {
+        break;
+      }
     }
 
-    if (booksGoal > 500 || pagesGoal > 5000) {
-      setGoalMessage("Please choose realistic goal values.");
-      return;
-    }
-
-    try {
-      const goal: ReadingGoal = {
-        booksPerYear: booksGoal,
-        pagesPerDay: pagesGoal,
-      };
-
-      await AsyncStorage.setItem(READING_GOAL_KEY, JSON.stringify(goal));
-      setGoalMessage("Reading goals saved successfully.");
-    } catch (error) {
-      console.log("Error saving reading goal:", error);
-      setGoalMessage("Could not save reading goals.");
-    }
+    return streak;
   };
 
-  const requestNotificationPermission = async () => {
-    const { status: existingStatus } =
-      await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
+  const stats = useMemo(() => {
+    const validBooks = books.filter(
+      (book) =>
+        book.totalPages > 0 &&
+        book.totalPages <= MAX_TOTAL_PAGES &&
+        book.currentPage >= 0 &&
+        book.currentPage <= book.totalPages,
+    );
 
-    if (existingStatus !== "granted") {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
+    const totalBooks = validBooks.length;
 
-    if (finalStatus !== "granted") {
-      setNotificationMessage(
-        "Notification permission is required to enable reminders.",
-      );
-      return false;
-    }
+    const plannedBooks = validBooks.filter(
+      (book) => book.status === "planned",
+    ).length;
 
-    return true;
-  };
+    const readingBooks = validBooks.filter(
+      (book) => book.status === "reading",
+    ).length;
 
-  const formatTime = (hour: number, minute: number) => {
-    const hh = String(hour).padStart(2, "0");
-    const mm = String(minute).padStart(2, "0");
-    return `${hh}:${mm}`;
-  };
+    const finishedBooks = validBooks.filter(
+      (book) => book.status === "finished",
+    ).length;
 
-  const scheduleDailyReminder = async (time: ReminderTime) => {
-    const granted = await requestNotificationPermission();
+    const totalPagesRead = validBooks.reduce(
+      (sum, book) => sum + book.currentPage,
+      0,
+    );
 
-    if (!granted) return;
+    const totalPagesInLibrary = validBooks.reduce(
+      (sum, book) => sum + book.totalPages,
+      0,
+    );
 
-    try {
-      await Notifications.cancelAllScheduledNotificationsAsync();
+    const completionRate =
+      totalBooks === 0 ? 0 : Math.round((finishedBooks / totalBooks) * 100);
 
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Time to read 📚",
-          body: "Open Novelo and continue your reading progress today.",
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour: time.hour,
-          minute: time.minute,
-        },
-      });
+    const averageProgress =
+      validBooks.length === 0
+        ? 0
+        : Math.round(
+            validBooks.reduce(
+              (sum, book) => sum + (book.currentPage / book.totalPages) * 100,
+              0,
+            ) / validBooks.length,
+          );
 
-      setDailyReminderEnabled(true);
-      await saveReminderSettings(true, time);
-      setNotificationMessage(
-        `Daily reminder is enabled for ${formatTime(time.hour, time.minute)}.`,
-      );
-    } catch (error) {
-      console.log("Error scheduling daily reminder:", error);
-      setNotificationMessage("Could not schedule daily reminder.");
-    }
-  };
+    const ratedBooks = validBooks.filter((book) => (book.rating || 0) > 0);
+    const ratedBooksCount = ratedBooks.length;
 
-  const scheduleTestReminder = async () => {
-    const granted = await requestNotificationPermission();
+    const averageRating =
+      ratedBooksCount === 0
+        ? 0
+        : Number(
+            (
+              ratedBooks.reduce((sum, book) => sum + (book.rating || 0), 0) /
+              ratedBooksCount
+            ).toFixed(1),
+          );
 
-    if (!granted) return;
+    const booksGoalProgress =
+      readingGoal.booksPerYear <= 0
+        ? 0
+        : Math.min(
+            100,
+            Math.round((finishedBooks / readingGoal.booksPerYear) * 100),
+          );
 
-    try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Novelo test reminder",
-          body: `This is a local notification test for ${formatTime(
-            selectedTime.hour,
-            selectedTime.minute,
-          )}.`,
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-          seconds: 3,
-          repeats: false,
-        },
-      });
+    const allReadingHistory = validBooks.flatMap(
+      (book) => book.readingHistory || [],
+    );
 
-      setNotificationMessage("Test reminder will appear in 3 seconds.");
-    } catch (error) {
-      console.log("Error scheduling test reminder:", error);
-      setNotificationMessage("Could not schedule test reminder.");
-    }
-  };
+    const streak = calculateStreak(allReadingHistory);
 
-  const handleTimeChange = async (event: DateTimePickerEvent, date?: Date) => {
-    setShowTimePicker(false);
+    const uniqueReadingDays = new Set(
+      allReadingHistory
+        .map((date) => {
+          const parsed = new Date(date);
+          if (Number.isNaN(parsed.getTime())) return null;
+          return normalizeDate(parsed).toISOString();
+        })
+        .filter(Boolean) as string[],
+    ).size;
 
-    if (event.type === "dismissed" || !date) {
-      return;
-    }
-
-    const newTime = {
-      hour: date.getHours(),
-      minute: date.getMinutes(),
+    return {
+      totalBooks,
+      plannedBooks,
+      readingBooks,
+      finishedBooks,
+      totalPagesRead,
+      totalPagesInLibrary,
+      completionRate,
+      averageProgress,
+      averageRating,
+      ratedBooksCount,
+      booksGoalProgress,
+      streak,
+      uniqueReadingDays,
     };
+  }, [books, readingGoal]);
 
-    setSelectedTime(newTime);
+  const renderStars = (rating: number) => {
+    const rounded = Math.round(rating);
 
-    if (dailyReminderEnabled) {
-      await scheduleDailyReminder(newTime);
-    } else {
-      await saveReminderSettings(false, newTime);
-      setNotificationMessage(
-        `Reminder time selected: ${formatTime(newTime.hour, newTime.minute)}`,
-      );
-    }
+    return (
+      <View style={styles.starsRow}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Text
+            key={star}
+            style={[
+              styles.star,
+              star <= rounded ? styles.starFilled : styles.starEmpty,
+            ]}
+          >
+            ★
+          </Text>
+        ))}
+      </View>
+    );
   };
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.title}>Settings</Text>
-      <Text style={styles.subtitle}>Manage your reading experience</Text>
+      <Text style={styles.title}>Reading Statistics</Text>
+      <Text style={styles.subtitle}>Your reading overview in one place</Text>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Reading Reminders</Text>
-        <Text style={styles.sectionDescription}>
-          Stay consistent with your reading habit by enabling daily reminders.
+      <View style={styles.heroCard}>
+        <Text style={styles.heroValue}>{stats.completionRate}%</Text>
+        <Text style={styles.heroLabel}>Completion Rate</Text>
+      </View>
+
+      <View style={styles.goalCard}>
+        <Text style={styles.goalTitle}>Reading Goal</Text>
+        <Text style={styles.goalText}>
+          {stats.finishedBooks} / {readingGoal.booksPerYear} books this year
         </Text>
 
-        <View style={styles.statusRow}>
-          <Text style={styles.statusLabel}>Daily Reminder Status</Text>
+        <View style={styles.goalProgressBackground}>
           <View
             style={[
-              styles.statusBadge,
-              dailyReminderEnabled
-                ? styles.statusBadgeEnabled
-                : styles.statusBadgeDisabled,
+              styles.goalProgressFill,
+              { width: `${stats.booksGoalProgress}%` },
             ]}
-          >
-            <Text
-              style={[
-                styles.statusBadgeText,
-                dailyReminderEnabled
-                  ? styles.statusBadgeTextEnabled
-                  : styles.statusBadgeTextDisabled,
-              ]}
-            >
-              {dailyReminderEnabled ? "Enabled" : "Disabled"}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={styles.timeTitle}>Reminder Time</Text>
-
-        <Pressable
-          style={styles.timePickerButton}
-          onPress={() => setShowTimePicker(true)}
-        >
-          <Text style={styles.timePickerButtonText}>
-            {formatTime(selectedTime.hour, selectedTime.minute)}
-          </Text>
-        </Pressable>
-
-        {showTimePicker ? (
-          <DateTimePicker
-            value={new Date(2025, 0, 1, selectedTime.hour, selectedTime.minute)}
-            mode="time"
-            is24Hour={true}
-            display="default"
-            onChange={handleTimeChange}
           />
-        ) : null}
-
-        <Pressable
-          style={styles.primaryButton}
-          onPress={() => scheduleDailyReminder(selectedTime)}
-        >
-          <Text style={styles.primaryButtonText}>Enable Daily Reminder</Text>
-        </Pressable>
-
-        <Pressable
-          style={styles.secondaryButton}
-          onPress={scheduleTestReminder}
-        >
-          <Text style={styles.secondaryButtonText}>Send Test Reminder</Text>
-        </Pressable>
-
-        {notificationMessage ? (
-          <Text style={styles.notificationMessage}>{notificationMessage}</Text>
-        ) : null}
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Reading Goals</Text>
-        <Text style={styles.sectionDescription}>
-          Set simple goals to turn reading into a consistent habit.
-        </Text>
-
-        <Text style={styles.label}>Books per year</Text>
-        <TextInput
-          style={styles.input}
-          value={booksPerYear}
-          onChangeText={setBooksPerYear}
-          keyboardType="numeric"
-          placeholder="Example: 12"
-        />
-
-        <Text style={styles.label}>Pages per day</Text>
-        <TextInput
-          style={styles.input}
-          value={pagesPerDay}
-          onChangeText={setPagesPerDay}
-          keyboardType="numeric"
-          placeholder="Example: 30"
-        />
-
-        <Pressable style={styles.primaryButton} onPress={saveReadingGoal}>
-          <Text style={styles.primaryButtonText}>Save Reading Goals</Text>
-        </Pressable>
-
-        {goalMessage ? (
-          <Text style={styles.notificationMessage}>{goalMessage}</Text>
-        ) : null}
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>App Preferences</Text>
-        <Text style={styles.preferenceItem}>
-          • Notifications for reading reminders
-        </Text>
-        <Text style={styles.preferenceItem}>• Reading progress tracking</Text>
-        <Text style={styles.preferenceItem}>
-          • Personal reading notes and quotes
-        </Text>
-        <Text style={styles.preferenceHint}>
-          More customization options can be added here later.
-        </Text>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Profile</Text>
-        <Text style={styles.sectionDescription}>
-          This section is planned for the future. It can include profile
-          details, reading goals, and personal preferences.
-        </Text>
-
-        <View style={styles.comingSoonBox}>
-          <Text style={styles.comingSoonTitle}>Coming Soon</Text>
-          <Text style={styles.comingSoonText}>
-            Profile settings, avatar, personal goals, and more.
-          </Text>
         </View>
+
+        <Text style={styles.goalPercent}>
+          {stats.booksGoalProgress}% reached
+        </Text>
+
+        <Text style={styles.goalHint}>
+          Daily page goal: {readingGoal.pagesPerDay} pages
+        </Text>
+      </View>
+
+      <View style={styles.streakCard}>
+        <Text style={styles.streakTitle}>Reading Streak</Text>
+        <Text style={styles.streakValue}>
+          🔥 {stats.streak} day{stats.streak === 1 ? "" : "s"}
+        </Text>
+        <Text style={styles.streakHint}>
+          Based on days when you updated reading progress.
+        </Text>
+      </View>
+
+      <View style={styles.statsGrid}>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{stats.totalBooks}</Text>
+          <Text style={styles.statLabel}>Total Books</Text>
+        </View>
+
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{stats.plannedBooks}</Text>
+          <Text style={styles.statLabel}>Planned</Text>
+        </View>
+
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{stats.readingBooks}</Text>
+          <Text style={styles.statLabel}>Reading</Text>
+        </View>
+
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{stats.finishedBooks}</Text>
+          <Text style={styles.statLabel}>Finished</Text>
+        </View>
+      </View>
+
+      <View style={styles.largeCard}>
+        <Text style={styles.largeCardValue}>{stats.totalPagesRead}</Text>
+        <Text style={styles.largeCardLabel}>Total Pages Read</Text>
+      </View>
+
+      <View style={styles.largeCard}>
+        <Text style={styles.largeCardValue}>{stats.totalPagesInLibrary}</Text>
+        <Text style={styles.largeCardLabel}>Total Pages in Library</Text>
+      </View>
+
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryValue}>{stats.averageProgress}%</Text>
+          <Text style={styles.summaryLabel}>Average Progress</Text>
+        </View>
+
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryValue}>{stats.uniqueReadingDays}</Text>
+          <Text style={styles.summaryLabel}>Active Reading Days</Text>
+        </View>
+      </View>
+
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryValue}>
+            {stats.readingBooks}:{stats.finishedBooks}
+          </Text>
+          <Text style={styles.summaryLabel}>Reading vs Finished</Text>
+        </View>
+
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryValue}>{stats.streak}</Text>
+          <Text style={styles.summaryLabel}>Current Streak</Text>
+        </View>
+      </View>
+
+      <View style={styles.ratingCard}>
+        <Text style={styles.ratingTitle}>Library Rating</Text>
+
+        {stats.ratedBooksCount === 0 ? (
+          <Text style={styles.ratingEmptyText}>No rated books yet</Text>
+        ) : (
+          <>
+            <Text style={styles.ratingValue}>{stats.averageRating} / 5</Text>
+            {renderStars(stats.averageRating)}
+            <Text style={styles.ratingSubtext}>
+              Based on {stats.ratedBooksCount} rated book
+              {stats.ratedBooksCount > 1 ? "s" : ""}
+            </Text>
+          </>
+        )}
+      </View>
+
+      <View style={styles.infoCard}>
+        <Text style={styles.infoTitle}>Quick Insight</Text>
+        <Text style={styles.infoText}>
+          {stats.totalBooks === 0
+            ? "Start by adding your first book to build your reading library."
+            : `You have ${stats.totalBooks} books in your library, ${stats.finishedBooks} finished, ${stats.readingBooks} currently in progress, and ${stats.uniqueReadingDays} active reading day${stats.uniqueReadingDays === 1 ? "" : "s"}.`}
+        </Text>
       </View>
     </ScrollView>
   );
@@ -400,7 +398,7 @@ const styles = StyleSheet.create({
 
   contentContainer: {
     padding: 24,
-    paddingBottom: 40,
+    paddingBottom: 140,
   },
 
   title: {
@@ -418,169 +416,251 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
 
-  card: {
-    backgroundColor: "#F8FAFC",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+  heroCard: {
+    backgroundColor: "#EEF2FF",
+    borderRadius: 18,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    marginBottom: 18,
   },
 
-  sectionTitle: {
+  heroValue: {
+    fontSize: 34,
+    fontWeight: "700",
+    color: "#4338CA",
+  },
+
+  heroLabel: {
+    fontSize: 15,
+    color: "#555",
+    marginTop: 6,
+  },
+
+  goalCard: {
+    backgroundColor: "#F5F3FF",
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: "#DDD6FE",
+  },
+
+  goalTitle: {
     fontSize: 20,
     fontWeight: "700",
+    color: "#5B21B6",
     marginBottom: 8,
   },
 
-  sectionDescription: {
-    fontSize: 14,
-    color: "#4B5563",
-    lineHeight: 20,
-    marginBottom: 14,
-  },
-
-  statusRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 14,
-  },
-
-  statusLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
-  },
-
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-
-  statusBadgeEnabled: {
-    backgroundColor: "#DCFCE7",
-  },
-
-  statusBadgeDisabled: {
-    backgroundColor: "#F3F4F6",
-  },
-
-  statusBadgeText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-
-  statusBadgeTextEnabled: {
-    color: "#166534",
-  },
-
-  statusBadgeTextDisabled: {
-    color: "#6B7280",
-  },
-
-  timeTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 10,
-  },
-
-  timePickerButton: {
-    backgroundColor: "#EDE9FE",
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginBottom: 14,
-  },
-
-  timePickerButtonText: {
-    color: "#5B21B6",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 6,
-    marginTop: 4,
-  },
-
-  input: {
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    backgroundColor: "#FFFFFF",
+  goalText: {
+    fontSize: 15,
+    color: "#374151",
     marginBottom: 12,
   },
 
-  primaryButton: {
+  goalProgressBackground: {
+    height: 12,
+    backgroundColor: "#E9D5FF",
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+
+  goalProgressFill: {
+    height: "100%",
     backgroundColor: "#7C3AED",
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
+    borderRadius: 999,
   },
 
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-
-  secondaryButton: {
-    backgroundColor: "#0F766E",
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
+  goalPercent: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#5B21B6",
     marginTop: 10,
   },
 
-  secondaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-
-  notificationMessage: {
-    marginTop: 12,
-    fontSize: 14,
-    color: "#374151",
-    textAlign: "center",
-    lineHeight: 20,
-  },
-
-  preferenceItem: {
-    fontSize: 14,
-    color: "#374151",
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-
-  preferenceHint: {
+  goalHint: {
     fontSize: 13,
     color: "#6B7280",
     marginTop: 6,
   },
 
-  comingSoonBox: {
-    backgroundColor: "#EEF2FF",
-    borderRadius: 14,
-    padding: 14,
-    marginTop: 8,
+  streakCard: {
+    backgroundColor: "#FEF3C7",
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
   },
 
-  comingSoonTitle: {
-    fontSize: 16,
+  streakTitle: {
+    fontSize: 18,
     fontWeight: "700",
-    color: "#4338CA",
+    color: "#92400E",
     marginBottom: 6,
   },
 
-  comingSoonText: {
+  streakValue: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#B45309",
+  },
+
+  streakHint: {
+    fontSize: 13,
+    color: "#78350F",
+    marginTop: 6,
+  },
+
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+
+  statCard: {
+    width: "48%",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 14,
+    padding: 18,
+    marginBottom: 12,
+    alignItems: "center",
+  },
+
+  statValue: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#6C63FF",
+  },
+
+  statLabel: {
+    fontSize: 14,
+    color: "#555",
+    marginTop: 6,
+    textAlign: "center",
+  },
+
+  largeCard: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 14,
+    padding: 18,
+    alignItems: "center",
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+
+  largeCardValue: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#111827",
+  },
+
+  largeCardLabel: {
+    fontSize: 14,
+    color: "#555",
+    marginTop: 6,
+    textAlign: "center",
+  },
+
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 12,
+  },
+
+  summaryCard: {
+    flex: 1,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 14,
+    padding: 18,
+    alignItems: "center",
+  },
+
+  summaryValue: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+
+  summaryLabel: {
+    fontSize: 13,
+    color: "#555",
+    marginTop: 6,
+    textAlign: "center",
+  },
+
+  ratingCard: {
+    backgroundColor: "#FFF7ED",
+    borderRadius: 14,
+    padding: 18,
+    alignItems: "center",
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+  },
+
+  ratingTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 10,
+    color: "#9A3412",
+  },
+
+  ratingValue: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#C2410C",
+  },
+
+  starsRow: {
+    flexDirection: "row",
+    marginTop: 8,
+  },
+
+  star: {
+    fontSize: 24,
+    marginHorizontal: 2,
+  },
+
+  starFilled: {
+    color: "#F59E0B",
+  },
+
+  starEmpty: {
+    color: "#D1D5DB",
+  },
+
+  ratingSubtext: {
+    fontSize: 13,
+    color: "#7C2D12",
+    marginTop: 8,
+    textAlign: "center",
+  },
+
+  ratingEmptyText: {
+    fontSize: 14,
+    color: "#7C2D12",
+  },
+
+  infoCard: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 14,
+    padding: 18,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+
+  infoTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+
+  infoText: {
     fontSize: 14,
     color: "#4B5563",
     lineHeight: 20,

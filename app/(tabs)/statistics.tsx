@@ -18,6 +18,11 @@ type Book = {
   favoriteQuote?: string;
   thoughts?: string;
   summary?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  updatedAt?: string;
+  lastReadAt?: string;
+  readingHistory?: string[];
 };
 
 type ReadingGoal = {
@@ -25,14 +30,8 @@ type ReadingGoal = {
   pagesPerDay: number;
 };
 
-type StreakData = {
-  count: number;
-  lastDate: string;
-};
-
 const STORAGE_KEY = "novelo_books";
 const READING_GOAL_KEY = "novelo_reading_goal";
-const STREAK_KEY = "novelo_reading_streak";
 const MAX_TOTAL_PAGES = 5000;
 
 export default function StatisticsScreen() {
@@ -41,31 +40,23 @@ export default function StatisticsScreen() {
     booksPerYear: 12,
     pagesPerDay: 30,
   });
-  const [streak, setStreak] = useState(0);
 
   useEffect(() => {
     loadBooks();
     loadReadingGoal();
-    loadStreak();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       loadBooks();
       loadReadingGoal();
-      loadStreak();
     }, []),
   );
 
   const loadBooks = async () => {
     try {
       const savedBooks = await AsyncStorage.getItem(STORAGE_KEY);
-
-      if (savedBooks) {
-        setBooks(JSON.parse(savedBooks));
-      } else {
-        setBooks([]);
-      }
+      setBooks(savedBooks ? JSON.parse(savedBooks) : []);
     } catch (error) {
       console.log("Error loading books:", error);
     }
@@ -83,19 +74,61 @@ export default function StatisticsScreen() {
     }
   };
 
-  const loadStreak = async () => {
-    try {
-      const saved = await AsyncStorage.getItem(STREAK_KEY);
+  const normalizeDate = (date: Date) => {
+    const normalized = new Date(date);
+    normalized.setHours(0, 0, 0, 0);
+    return normalized;
+  };
 
-      if (saved) {
-        const parsed: StreakData = JSON.parse(saved);
-        setStreak(parsed.count || 0);
-      } else {
-        setStreak(0);
-      }
-    } catch (error) {
-      console.log("Error loading streak:", error);
+  const calculateStreak = (history: string[]) => {
+    if (history.length === 0) return 0;
+
+    const uniqueDays = Array.from(
+      new Set(
+        history
+          .map((date) => {
+            const parsed = new Date(date);
+            if (Number.isNaN(parsed.getTime())) return null;
+            return normalizeDate(parsed).toISOString();
+          })
+          .filter(Boolean) as string[],
+      ),
+    )
+      .map((date) => new Date(date))
+      .sort((a, b) => b.getTime() - a.getTime());
+
+    if (uniqueDays.length === 0) return 0;
+
+    const today = normalizeDate(new Date());
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    const firstDay = uniqueDays[0];
+
+    if (
+      firstDay.getTime() !== today.getTime() &&
+      firstDay.getTime() !== yesterday.getTime()
+    ) {
+      return 0;
     }
+
+    let streak = 1;
+    let previousDay = firstDay;
+
+    for (let i = 1; i < uniqueDays.length; i++) {
+      const currentDay = uniqueDays[i];
+      const expectedPreviousDay = new Date(previousDay);
+      expectedPreviousDay.setDate(previousDay.getDate() - 1);
+
+      if (currentDay.getTime() === expectedPreviousDay.getTime()) {
+        streak += 1;
+        previousDay = currentDay;
+      } else {
+        break;
+      }
+    }
+
+    return streak;
   };
 
   const stats = useMemo(() => {
@@ -108,12 +141,15 @@ export default function StatisticsScreen() {
     );
 
     const totalBooks = validBooks.length;
+
     const plannedBooks = validBooks.filter(
       (book) => book.status === "planned",
     ).length;
+
     const readingBooks = validBooks.filter(
       (book) => book.status === "reading",
     ).length;
+
     const finishedBooks = validBooks.filter(
       (book) => book.status === "finished",
     ).length;
@@ -162,6 +198,16 @@ export default function StatisticsScreen() {
             Math.round((finishedBooks / readingGoal.booksPerYear) * 100),
           );
 
+    const allReadingHistory = validBooks.flatMap(
+      (book) => book.readingHistory || [],
+    );
+
+    const streak = calculateStreak(allReadingHistory);
+
+    const uniqueReadingDays = new Set(
+      allReadingHistory.map((date) => new Date(date).toDateString()),
+    ).size;
+
     return {
       totalBooks,
       plannedBooks,
@@ -174,6 +220,8 @@ export default function StatisticsScreen() {
       averageRating,
       ratedBooksCount,
       booksGoalProgress,
+      streak,
+      uniqueReadingDays,
     };
   }, [books, readingGoal]);
 
@@ -201,6 +249,7 @@ export default function StatisticsScreen() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
     >
       <Text style={styles.title}>Reading Statistics</Text>
       <Text style={styles.subtitle}>Your reading overview in one place</Text>
@@ -237,10 +286,10 @@ export default function StatisticsScreen() {
       <View style={styles.streakCard}>
         <Text style={styles.streakTitle}>Reading Streak</Text>
         <Text style={styles.streakValue}>
-          🔥 {streak} day{streak === 1 ? "" : "s"}
+          🔥 {stats.streak} day{stats.streak === 1 ? "" : "s"}
         </Text>
         <Text style={styles.streakHint}>
-          Keep updating your reading daily to maintain your streak.
+          Based on days when you updated reading progress.
         </Text>
       </View>
 
@@ -283,10 +332,22 @@ export default function StatisticsScreen() {
         </View>
 
         <View style={styles.summaryCard}>
+          <Text style={styles.summaryValue}>{stats.uniqueReadingDays}</Text>
+          <Text style={styles.summaryLabel}>Active Reading Days</Text>
+        </View>
+      </View>
+
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryCard}>
           <Text style={styles.summaryValue}>
             {stats.readingBooks}:{stats.finishedBooks}
           </Text>
           <Text style={styles.summaryLabel}>Reading vs Finished</Text>
+        </View>
+
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryValue}>{stats.streak}</Text>
+          <Text style={styles.summaryLabel}>Current Streak</Text>
         </View>
       </View>
 
@@ -312,7 +373,7 @@ export default function StatisticsScreen() {
         <Text style={styles.infoText}>
           {stats.totalBooks === 0
             ? "Start by adding your first book to build your reading library."
-            : `You have ${stats.totalBooks} books in your library, ${stats.finishedBooks} finished, and ${stats.readingBooks} currently in progress.`}
+            : `You have ${stats.totalBooks} books in your library, ${stats.finishedBooks} finished, ${stats.readingBooks} currently in progress, and ${stats.uniqueReadingDays} active reading day${stats.uniqueReadingDays === 1 ? "" : "s"}.`}
         </Text>
       </View>
     </ScrollView>
@@ -327,7 +388,7 @@ const styles = StyleSheet.create({
 
   contentContainer: {
     padding: 24,
-    paddingBottom: 40,
+    paddingBottom: 140,
   },
 
   title: {
@@ -467,6 +528,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#555",
     marginTop: 6,
+    textAlign: "center",
   },
 
   largeCard: {
@@ -489,6 +551,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#555",
     marginTop: 6,
+    textAlign: "center",
   },
 
   summaryRow: {
