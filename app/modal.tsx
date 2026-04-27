@@ -15,6 +15,15 @@ import {
 
 type BookStatus = "planned" | "reading" | "finished";
 
+type BookGenre =
+  | "Fantasy"
+  | "Romance"
+  | "Classic"
+  | "Self-development"
+  | "Education"
+  | "Mystery"
+  | "Other";
+
 type Book = {
   id: string;
   title: string;
@@ -22,6 +31,7 @@ type Book = {
   totalPages: number;
   currentPage: number;
   status: BookStatus;
+  genre?: BookGenre;
   rating?: number;
   coverUri?: string;
   notes?: string;
@@ -31,10 +41,22 @@ type Book = {
   startedAt?: string;
   finishedAt?: string;
   updatedAt?: string;
+  lastReadAt?: string;
+  readingHistory?: string[];
 };
 
 const STORAGE_KEY = "novelo_books";
 const MAX_TOTAL_PAGES = 5000;
+
+const GENRES: BookGenre[] = [
+  "Fantasy",
+  "Romance",
+  "Classic",
+  "Self-development",
+  "Education",
+  "Mystery",
+  "Other",
+];
 
 export default function AddBookScreen() {
   const [title, setTitle] = useState("");
@@ -44,6 +66,7 @@ export default function AddBookScreen() {
   const [coverUri, setCoverUri] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<BookStatus>("planned");
+  const [selectedGenre, setSelectedGenre] = useState<BookGenre>("Other");
 
   const pickCoverImage = async () => {
     try {
@@ -93,6 +116,27 @@ export default function AddBookScreen() {
     );
   };
 
+  const renderGenreOption = (genre: BookGenre) => {
+    const isActive = selectedGenre === genre;
+
+    return (
+      <Pressable
+        key={genre}
+        style={[styles.genreOption, isActive && styles.genreOptionActive]}
+        onPress={() => setSelectedGenre(genre)}
+      >
+        <Text
+          style={[
+            styles.genreOptionText,
+            isActive && styles.genreOptionTextActive,
+          ]}
+        >
+          {genre}
+        </Text>
+      </Pressable>
+    );
+  };
+
   const resetForm = () => {
     setTitle("");
     setAuthor("");
@@ -100,6 +144,7 @@ export default function AddBookScreen() {
     setCurrentPage("");
     setCoverUri("");
     setSelectedStatus("planned");
+    setSelectedGenre("Other");
     setErrorMessage("");
   };
 
@@ -155,6 +200,7 @@ export default function AddBookScreen() {
       totalPages: total,
       currentPage: current,
       status: selectedStatus,
+      genre: selectedGenre,
       rating: 0,
       coverUri: coverUri || undefined,
       notes: "",
@@ -167,6 +213,8 @@ export default function AddBookScreen() {
           : undefined,
       finishedAt: selectedStatus === "finished" ? now : undefined,
       updatedAt: now,
+      lastReadAt: undefined,
+      readingHistory: [],
     };
 
     try {
@@ -242,6 +290,11 @@ export default function AddBookScreen() {
         <Text style={styles.helperText}>
           Planned sets current page to 0. Finished sets it to total pages.
         </Text>
+
+        <Text style={styles.label}>Genre</Text>
+        <View style={styles.genreOptionsWrap}>
+          {GENRES.map(renderGenreOption)}
+        </View>
 
         <Text style={styles.label}>Book Cover</Text>
         <Pressable style={styles.coverButton} onPress={pickCoverImage}>
@@ -341,6 +394,34 @@ const styles = StyleSheet.create({
   },
 
   statusOptionTextActive: {
+    color: "#FFFFFF",
+  },
+
+  genreOptionsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 4,
+  },
+
+  genreOption: {
+    backgroundColor: "#E5E7EB",
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 999,
+  },
+
+  genreOptionActive: {
+    backgroundColor: "#6C63FF",
+  },
+
+  genreOptionText: {
+    color: "#374151",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  genreOptionTextActive: {
     color: "#FFFFFF",
   },
 

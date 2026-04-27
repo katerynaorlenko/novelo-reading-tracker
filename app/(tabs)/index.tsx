@@ -23,6 +23,7 @@ type Book = {
   totalPages: number;
   currentPage: number;
   status: BookStatus;
+  genre?: string;
   rating?: number;
   coverUri?: string;
   notes?: string;
@@ -106,7 +107,8 @@ export default function LibraryScreen() {
     const filtered = books.filter((book) => {
       const matchesSearch =
         book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        book.author.toLowerCase().includes(searchQuery.toLowerCase());
+        book.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (book.genre || "").toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesFilter =
         activeFilter === "all" ? true : book.status === activeFilter;
@@ -222,6 +224,16 @@ export default function LibraryScreen() {
     );
   };
 
+  const renderGenreBadge = (genre?: string) => {
+    if (!genre) return null;
+
+    return (
+      <View style={styles.genreBadge}>
+        <Text style={styles.genreBadgeText}>{genre}</Text>
+      </View>
+    );
+  };
+
   const isLibraryEmpty = books.length === 0;
   const isFilteredEmpty =
     !isLibraryEmpty && filteredAndSortedBooks.length === 0;
@@ -277,6 +289,8 @@ export default function LibraryScreen() {
                 {continueReadingBook.author}
               </Text>
 
+              {renderGenreBadge(continueReadingBook.genre)}
+
               {renderStars(continueReadingBook.rating || 0)}
 
               <Text style={styles.continuePages}>
@@ -323,7 +337,7 @@ export default function LibraryScreen() {
           <View style={styles.searchSection}>
             <TextInput
               style={styles.searchInput}
-              placeholder="Search by title or author"
+              placeholder="Search by title, author or genre"
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
@@ -436,6 +450,8 @@ export default function LibraryScreen() {
                     <Text numberOfLines={1} style={styles.bookAuthor}>
                       {book.author}
                     </Text>
+
+                    {renderGenreBadge(book.genre)}
 
                     {renderStars(book.rating || 0)}
 
@@ -664,6 +680,7 @@ const styles = StyleSheet.create({
     color: "#374151",
     fontSize: 14,
     fontWeight: "600",
+    textTransform: "capitalize",
   },
 
   filterButtonTextActive: {
@@ -871,6 +888,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6B7280",
     marginTop: 4,
+  },
+
+  genreBadge: {
+    backgroundColor: "#EDE9FE",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    alignSelf: "flex-start",
+    marginTop: 8,
+  },
+
+  genreBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#5B21B6",
   },
 
   starsRow: {

@@ -88,7 +88,11 @@ export default function StatisticsScreen() {
         history
           .map((date) => {
             const parsed = new Date(date);
-            if (Number.isNaN(parsed.getTime())) return null;
+
+            if (Number.isNaN(parsed.getTime())) {
+              return null;
+            }
+
             return normalizeDate(parsed).toISOString();
           })
           .filter(Boolean) as string[],
@@ -205,7 +209,13 @@ export default function StatisticsScreen() {
     const streak = calculateStreak(allReadingHistory);
 
     const uniqueReadingDays = new Set(
-      allReadingHistory.map((date) => new Date(date).toDateString()),
+      allReadingHistory
+        .map((date) => {
+          const parsed = new Date(date);
+          if (Number.isNaN(parsed.getTime())) return null;
+          return normalizeDate(parsed).toISOString();
+        })
+        .filter(Boolean) as string[],
     ).size;
 
     return {
