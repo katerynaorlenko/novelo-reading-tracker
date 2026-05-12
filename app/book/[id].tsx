@@ -31,6 +31,7 @@ type Book = {
   startedAt?: string;
   finishedAt?: string;
   updatedAt?: string;
+  genre?: string;
   lastReadAt?: string;
   readingHistory?: string[];
 };

@@ -12,6 +12,7 @@ type Book = {
   totalPages: number;
   currentPage: number;
   status: BookStatus;
+  genre?: string;
   rating?: number;
   coverUri?: string;
   notes?: string;
@@ -88,11 +89,7 @@ export default function StatisticsScreen() {
         history
           .map((date) => {
             const parsed = new Date(date);
-
-            if (Number.isNaN(parsed.getTime())) {
-              return null;
-            }
-
+            if (Number.isNaN(parsed.getTime())) return null;
             return normalizeDate(parsed).toISOString();
           })
           .filter(Boolean) as string[],
@@ -218,6 +215,22 @@ export default function StatisticsScreen() {
         .filter(Boolean) as string[],
     ).size;
 
+    const genreCounts = validBooks.reduce<Record<string, number>>(
+      (acc, book) => {
+        const genre = book.genre || "Other";
+        acc[genre] = (acc[genre] || 0) + 1;
+        return acc;
+      },
+      {},
+    );
+
+    const favoriteGenreEntry = Object.entries(genreCounts).sort(
+      (a, b) => b[1] - a[1],
+    )[0];
+
+    const favoriteGenre = favoriteGenreEntry ? favoriteGenreEntry[0] : "—";
+    const favoriteGenreCount = favoriteGenreEntry ? favoriteGenreEntry[1] : 0;
+
     return {
       totalBooks,
       plannedBooks,
@@ -232,6 +245,8 @@ export default function StatisticsScreen() {
       booksGoalProgress,
       streak,
       uniqueReadingDays,
+      favoriteGenre,
+      favoriteGenreCount,
     };
   }, [books, readingGoal]);
 
@@ -300,6 +315,15 @@ export default function StatisticsScreen() {
         </Text>
         <Text style={styles.streakHint}>
           Based on days when you updated reading progress.
+        </Text>
+      </View>
+
+      <View style={styles.genreCard}>
+        <Text style={styles.genreTitle}>Favorite Genre</Text>
+        <Text style={styles.genreValue}>{stats.favoriteGenre}</Text>
+        <Text style={styles.genreHint}>
+          Based on {stats.favoriteGenreCount} book
+          {stats.favoriteGenreCount === 1 ? "" : "s"} in this genre.
         </Text>
       </View>
 
@@ -383,7 +407,7 @@ export default function StatisticsScreen() {
         <Text style={styles.infoText}>
           {stats.totalBooks === 0
             ? "Start by adding your first book to build your reading library."
-            : `You have ${stats.totalBooks} books in your library, ${stats.finishedBooks} finished, ${stats.readingBooks} currently in progress, and ${stats.uniqueReadingDays} active reading day${stats.uniqueReadingDays === 1 ? "" : "s"}.`}
+            : `You have ${stats.totalBooks} books, ${stats.finishedBooks} finished, ${stats.readingBooks} currently in progress, and your most common genre is ${stats.favoriteGenre}.`}
         </Text>
       </View>
     </ScrollView>
@@ -510,6 +534,34 @@ const styles = StyleSheet.create({
   streakHint: {
     fontSize: 13,
     color: "#78350F",
+    marginTop: 6,
+  },
+
+  genreCard: {
+    backgroundColor: "#ECFDF5",
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+  },
+
+  genreTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#166534",
+    marginBottom: 6,
+  },
+
+  genreValue: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#15803D",
+  },
+
+  genreHint: {
+    fontSize: 13,
+    color: "#166534",
     marginTop: 6,
   },
 
