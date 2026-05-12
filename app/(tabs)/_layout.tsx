@@ -32,10 +32,10 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
-        name="settings"
+        name="profile"
         options={{
-          title: "Settings",
-          headerTitle: "Settings",
+          title: "Profile",
+          headerTitle: "Profile",
         }}
       />
     </Tabs>

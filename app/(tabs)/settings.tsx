@@ -1,7 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import DateTimePicker, {
-  DateTimePickerEvent,
-} from "@react-native-community/datetimepicker";
+
 import * as Notifications from "expo-notifications";
 import { useEffect, useState } from "react";
 import {
@@ -226,7 +224,7 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleTimeChange = async (event: DateTimePickerEvent, date?: Date) => {
+  const handleTimeChange = async (event: { type?: string }, date?: Date) => {
     setShowTimePicker(false);
 
     if (event.type === "dismissed" || !date) {
@@ -297,16 +295,6 @@ export default function SettingsScreen() {
             {formatTime(selectedTime.hour, selectedTime.minute)}
           </Text>
         </Pressable>
-
-        {showTimePicker ? (
-          <DateTimePicker
-            value={new Date(2025, 0, 1, selectedTime.hour, selectedTime.minute)}
-            mode="time"
-            is24Hour={true}
-            display="default"
-            onChange={handleTimeChange}
-          />
-        ) : null}
 
         <Pressable
           style={styles.primaryButton}

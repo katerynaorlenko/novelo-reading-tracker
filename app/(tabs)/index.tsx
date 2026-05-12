@@ -26,15 +26,8 @@ type Book = {
   genre?: string;
   rating?: number;
   coverUri?: string;
-  notes?: string;
-  favoriteQuote?: string;
-  thoughts?: string;
-  summary?: string;
-  startedAt?: string;
-  finishedAt?: string;
   updatedAt?: string;
   lastReadAt?: string;
-  readingHistory?: string[];
 };
 
 const STORAGE_KEY = "novelo_books";
@@ -64,6 +57,14 @@ export default function LibraryScreen() {
     }
   };
 
+  const totalPagesRead = useMemo(() => {
+    return books.reduce((sum, book) => sum + book.currentPage, 0);
+  }, [books]);
+
+  const finishedBooksCount = useMemo(() => {
+    return books.filter((book) => book.status === "finished").length;
+  }, [books]);
+
   const getProgressPercentage = (current: number, total: number) => {
     if (total <= 0) return 0;
     return Math.round((current / total) * 100);
@@ -73,10 +74,7 @@ export default function LibraryScreen() {
     if (!value) return "Not updated yet";
 
     const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return "Not updated yet";
-    }
+    if (Number.isNaN(date.getTime())) return "Not updated yet";
 
     return date.toLocaleDateString("en-GB", {
       day: "2-digit",
@@ -105,10 +103,12 @@ export default function LibraryScreen() {
 
   const filteredAndSortedBooks = useMemo(() => {
     const filtered = books.filter((book) => {
+      const query = searchQuery.toLowerCase();
+
       const matchesSearch =
-        book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        book.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (book.genre || "").toLowerCase().includes(searchQuery.toLowerCase());
+        book.title.toLowerCase().includes(query) ||
+        book.author.toLowerCase().includes(query) ||
+        (book.genre || "").toLowerCase().includes(query);
 
       const matchesFilter =
         activeFilter === "all" ? true : book.status === activeFilter;
@@ -142,6 +142,32 @@ export default function LibraryScreen() {
       return bDate - aDate;
     });
   }, [books, searchQuery, activeFilter, sortBy]);
+
+  const renderStars = (rating: number = 0) => (
+    <View style={styles.starsRow}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Text
+          key={star}
+          style={[
+            styles.star,
+            star <= rating ? styles.starFilled : styles.starEmpty,
+          ]}
+        >
+          ★
+        </Text>
+      ))}
+    </View>
+  );
+
+  const renderGenreBadge = (genre?: string) => {
+    if (!genre) return null;
+
+    return (
+      <View style={styles.genreBadge}>
+        <Text style={styles.genreBadgeText}>{genre}</Text>
+      </View>
+    );
+  };
 
   const renderFilterButton = (label: string, value: FilterStatus) => {
     const isActive = activeFilter === value;
@@ -206,34 +232,6 @@ export default function LibraryScreen() {
     };
   };
 
-  const renderStars = (rating: number = 0) => {
-    return (
-      <View style={styles.starsRow}>
-        {[1, 2, 3, 4, 5].map((star) => (
-          <Text
-            key={star}
-            style={[
-              styles.star,
-              star <= rating ? styles.starFilled : styles.starEmpty,
-            ]}
-          >
-            ★
-          </Text>
-        ))}
-      </View>
-    );
-  };
-
-  const renderGenreBadge = (genre?: string) => {
-    if (!genre) return null;
-
-    return (
-      <View style={styles.genreBadge}>
-        <Text style={styles.genreBadgeText}>{genre}</Text>
-      </View>
-    );
-  };
-
   const isLibraryEmpty = books.length === 0;
   const isFilteredEmpty =
     !isLibraryEmpty && filteredAndSortedBooks.length === 0;
@@ -245,17 +243,52 @@ export default function LibraryScreen() {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.headerBlock}>
-        <Text style={styles.title}>Novelo</Text>
-        <Text style={styles.subtitle}>My Library</Text>
+      <View style={styles.brandBar}>
+        <View style={styles.logoBox}>
+          <Text style={styles.logoEmoji}>📖</Text>
+        </View>
+
+        <View>
+          <Text style={styles.brandTitle}>NOVELO</Text>
+          <Text style={styles.brandSubtitle}>Your reading space</Text>
+        </View>
       </View>
 
-      <Pressable
-        style={styles.addButton}
-        onPress={() => router.push("/modal" as never)}
-      >
-        <Text style={styles.addButtonText}>+ Add Book</Text>
-      </Pressable>
+      <View style={styles.heroCard}>
+        <View style={styles.heroBadge}>
+          <Text style={styles.heroBadgeText}>READING TRACKER</Text>
+        </View>
+
+        <Text style={styles.heroTitle}>Track your reading.</Text>
+
+        <Text style={styles.heroSubtitle}>
+          Build your habit and organize your books beautifully.
+        </Text>
+
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{books.length}</Text>
+            <Text style={styles.statLabel}>Books</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{finishedBooksCount}</Text>
+            <Text style={styles.statLabel}>Finished</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{totalPagesRead}</Text>
+            <Text style={styles.statLabel}>Pages</Text>
+          </View>
+        </View>
+
+        <Pressable
+          style={styles.addButton}
+          onPress={() => router.push("/modal" as never)}
+        >
+          <Text style={styles.addButtonText}>+ Add Book</Text>
+        </Pressable>
+      </View>
 
       {continueReadingBook ? (
         <Pressable
@@ -288,8 +321,6 @@ export default function LibraryScreen() {
               <Text numberOfLines={1} style={styles.continueAuthor}>
                 {continueReadingBook.author}
               </Text>
-
-              {renderGenreBadge(continueReadingBook.genre)}
 
               {renderStars(continueReadingBook.rating || 0)}
 
@@ -334,39 +365,41 @@ export default function LibraryScreen() {
 
       {!isLibraryEmpty ? (
         <>
-          <View style={styles.searchSection}>
+          <View style={styles.searchWrapper}>
+            <Text style={styles.searchIcon}>⌕</Text>
             <TextInput
               style={styles.searchInput}
               placeholder="Search by title, author or genre"
+              placeholderTextColor="#A7AAB5"
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersContainer}
+          >
+            {renderFilterButton("All", "all")}
+            {renderFilterButton("Planned", "planned")}
+            {renderFilterButton("Reading", "reading")}
+            {renderFilterButton("Finished", "finished")}
+          </ScrollView>
+
+          <View style={styles.sortSection}>
+            <Text style={styles.sortTitle}>Sort by</Text>
 
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filtersContainer}
+              contentContainerStyle={styles.sortContainer}
             >
-              {renderFilterButton("All", "all")}
-              {renderFilterButton("Planned", "planned")}
-              {renderFilterButton("Reading", "reading")}
-              {renderFilterButton("Finished", "finished")}
+              {renderSortButton("Newest", "newest")}
+              {renderSortButton("Progress", "progress")}
+              {renderSortButton("Rating", "rating")}
+              {renderSortButton("A–Z", "title")}
             </ScrollView>
-
-            <View style={styles.sortSection}>
-              <Text style={styles.sortTitle}>Sort by</Text>
-
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.sortContainer}
-              >
-                {renderSortButton("Newest", "newest")}
-                {renderSortButton("Progress", "progress")}
-                {renderSortButton("Rating", "rating")}
-                {renderSortButton("A–Z", "title")}
-              </ScrollView>
-            </View>
           </View>
 
           <View style={styles.sectionHeader}>
@@ -380,33 +413,19 @@ export default function LibraryScreen() {
 
       {isLibraryEmpty ? (
         <View style={styles.emptyLibraryCard}>
-          <View style={styles.emptyIllustration}>
-            <Text style={styles.emptyEmoji}>📚</Text>
-          </View>
-
+          <Text style={styles.emptyEmoji}>📚</Text>
           <Text style={styles.emptyLibraryTitle}>
             Start your reading journey
           </Text>
           <Text style={styles.emptyLibraryText}>
-            Build your personal library, track progress, save notes, and turn
-            reading into a clear daily habit.
+            Add your first book and start tracking your reading progress.
           </Text>
-
-          <Pressable
-            style={styles.emptyLibraryButton}
-            onPress={() => router.push("/modal" as never)}
-          >
-            <Text style={styles.emptyLibraryButtonText}>
-              Add Your First Book
-            </Text>
-          </Pressable>
         </View>
       ) : isFilteredEmpty ? (
         <View style={styles.emptyStateCard}>
           <Text style={styles.emptyStateTitle}>No books found</Text>
           <Text style={styles.emptyStateText}>
-            Try another search, change the filter, or choose another sorting
-            option.
+            Try another search or change the filter.
           </Text>
         </View>
       ) : (
@@ -416,7 +435,6 @@ export default function LibraryScreen() {
               book.currentPage,
               book.totalPages,
             );
-
             const badgeStyles = getStatusBadgeStyle(book.status);
 
             return (
@@ -452,7 +470,6 @@ export default function LibraryScreen() {
                     </Text>
 
                     {renderGenreBadge(book.genre)}
-
                     {renderStars(book.rating || 0)}
 
                     <Text style={styles.bookPages}>
@@ -499,64 +516,165 @@ export default function LibraryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F7F7FF",
   },
 
   contentContainer: {
     padding: 20,
-    paddingBottom: 140,
+    paddingBottom: 150,
   },
 
-  headerBlock: {
+  brandBar: {
+    flexDirection: "row",
     alignItems: "center",
-    marginTop: 20,
-    marginBottom: 20,
+    marginTop: 18,
+    marginBottom: 16,
   },
 
-  title: {
-    fontSize: 34,
+  logoBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "#6C63FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+    shadowColor: "#6C63FF",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+
+  logoEmoji: {
+    fontSize: 23,
+  },
+
+  brandTitle: {
+    fontSize: 25,
+    fontWeight: "900",
+    color: "#6C63FF",
+    letterSpacing: 1.2,
+  },
+
+  brandSubtitle: {
+    fontSize: 14,
+    color: "#7B7280",
+    marginTop: 2,
+  },
+
+  heroCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 32,
+    padding: 24,
+    alignItems: "center",
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#ECECF7",
+    shadowColor: "#6C63FF",
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 4,
+  },
+
+  heroBadge: {
+    backgroundColor: "#F2EFFF",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#E2DAFF",
+    marginBottom: 16,
+  },
+
+  heroBadgeText: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: "#6C63FF",
+    letterSpacing: 1.5,
+  },
+
+  heroTitle: {
+    fontSize: 27,
+    fontWeight: "900",
+    color: "#0F172A",
+    textAlign: "center",
+    lineHeight: 32,
+    marginBottom: 8,
+  },
+
+  heroSubtitle: {
+    fontSize: 15,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 21,
+    marginBottom: 22,
+    paddingHorizontal: 8,
+  },
+
+  statsRow: {
+    flexDirection: "row",
+    gap: 10,
+    width: "100%",
+    marginBottom: 22,
+  },
+
+  statCard: {
+    flex: 1,
+    backgroundColor: "#F5F3FF",
+    borderRadius: 18,
+    paddingVertical: 15,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E9E5FF",
+  },
+
+  statNumber: {
+    fontSize: 21,
+    fontWeight: "900",
+    color: "#6C63FF",
+  },
+
+  statLabel: {
+    fontSize: 12,
+    color: "#7B7280",
+    marginTop: 4,
     fontWeight: "700",
   },
 
-  subtitle: {
-    fontSize: 18,
-    color: "#6B7280",
-    marginTop: 8,
-  },
-
   addButton: {
+    width: "100%",
     backgroundColor: "#6C63FF",
-    paddingVertical: 14,
+    paddingVertical: 15,
     borderRadius: 18,
     alignItems: "center",
-    marginBottom: 16,
     shadowColor: "#6C63FF",
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 5,
   },
 
   addButtonText: {
     color: "#FFFFFF",
-    fontWeight: "700",
+    fontWeight: "900",
     fontSize: 16,
   },
 
   continueCard: {
-    backgroundColor: "#EEF2FF",
-    borderRadius: 24,
-    padding: 16,
-    marginBottom: 18,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 26,
+    padding: 18,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#ECECF7",
   },
 
   continueLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#4338CA",
+    fontSize: 13,
+    fontWeight: "900",
+    color: "#6C63FF",
     marginBottom: 12,
     textTransform: "uppercase",
   },
@@ -567,24 +685,23 @@ const styles = StyleSheet.create({
   },
 
   continueCover: {
-    width: 82,
-    height: 116,
+    width: 88,
+    height: 124,
     borderRadius: 16,
   },
 
   continueCoverPlaceholder: {
-    width: 82,
-    height: 116,
+    width: 88,
+    height: 124,
     borderRadius: 16,
-    backgroundColor: "#DDE3F7",
+    backgroundColor: "#EEF0F5",
     alignItems: "center",
     justifyContent: "center",
   },
 
   continueCoverPlaceholderText: {
-    fontSize: 12,
     color: "#6B7280",
-    fontWeight: "600",
+    fontWeight: "700",
   },
 
   continueInfo: {
@@ -594,7 +711,7 @@ const styles = StyleSheet.create({
 
   continueTitle: {
     fontSize: 22,
-    fontWeight: "700",
+    fontWeight: "900",
     color: "#111827",
   },
 
@@ -611,8 +728,8 @@ const styles = StyleSheet.create({
   },
 
   continueProgressBackground: {
-    height: 10,
-    backgroundColor: "#D8DEF5",
+    height: 9,
+    backgroundColor: "#E5E7F2",
     borderRadius: 999,
     overflow: "hidden",
     marginTop: 10,
@@ -628,58 +745,71 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#4B5563",
     marginTop: 8,
-    fontWeight: "500",
+    fontWeight: "700",
   },
 
   continueButton: {
-    marginTop: 14,
+    marginTop: 16,
     backgroundColor: "#6C63FF",
     borderRadius: 16,
-    paddingVertical: 12,
+    paddingVertical: 13,
     alignItems: "center",
   },
 
   continueButtonText: {
     color: "#FFFFFF",
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "900",
   },
 
-  searchSection: {
-    marginBottom: 18,
+  searchWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#ECECF7",
+  },
+
+  searchIcon: {
+    fontSize: 22,
+    color: "#9CA3AF",
+    marginRight: 8,
   },
 
   searchInput: {
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    fontSize: 16,
-    backgroundColor: "#FFFFFF",
-    marginBottom: 12,
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: "#111827",
   },
 
   filtersContainer: {
     gap: 10,
     paddingRight: 8,
+    marginBottom: 16,
   },
 
   filterButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 11,
+    paddingHorizontal: 18,
     borderRadius: 999,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#ECECF7",
   },
 
   filterButtonActive: {
     backgroundColor: "#6C63FF",
+    borderColor: "#6C63FF",
   },
 
   filterButtonText: {
     color: "#374151",
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "800",
     textTransform: "capitalize",
   },
 
@@ -688,12 +818,12 @@ const styles = StyleSheet.create({
   },
 
   sortSection: {
-    marginTop: 14,
+    marginBottom: 18,
   },
 
   sortTitle: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "900",
     color: "#6B7280",
     marginBottom: 8,
   },
@@ -704,19 +834,22 @@ const styles = StyleSheet.create({
   },
 
   sortButton: {
-    paddingHorizontal: 13,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     borderRadius: 999,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#ECECF7",
   },
 
   sortButtonActive: {
     backgroundColor: "#111827",
+    borderColor: "#111827",
   },
 
   sortButtonText: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "900",
     color: "#6B7280",
   },
 
@@ -732,93 +865,19 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    fontSize: 24,
-    fontWeight: "700",
+    fontSize: 26,
+    fontWeight: "900",
+    color: "#111827",
   },
 
   sectionCount: {
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "900",
     color: "#6C63FF",
-    backgroundColor: "#EEF2FF",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    backgroundColor: "#EEEAFE",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 999,
-  },
-
-  emptyLibraryCard: {
-    backgroundColor: "#F8FAFC",
-    borderRadius: 22,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    alignItems: "center",
-    marginTop: 10,
-  },
-
-  emptyIllustration: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: "#EEF2FF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 18,
-  },
-
-  emptyEmoji: {
-    fontSize: 36,
-  },
-
-  emptyLibraryTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    textAlign: "center",
-    color: "#111827",
-    marginBottom: 10,
-  },
-
-  emptyLibraryText: {
-    fontSize: 14,
-    color: "#6B7280",
-    textAlign: "center",
-    lineHeight: 21,
-    marginBottom: 18,
-  },
-
-  emptyLibraryButton: {
-    backgroundColor: "#6C63FF",
-    paddingVertical: 13,
-    paddingHorizontal: 18,
-    borderRadius: 14,
-  },
-
-  emptyLibraryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-
-  emptyStateCard: {
-    backgroundColor: "#F8FAFC",
-    borderRadius: 18,
-    padding: 22,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    alignItems: "center",
-  },
-
-  emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-
-  emptyStateText: {
-    fontSize: 14,
-    color: "#6B7280",
-    textAlign: "center",
-    lineHeight: 20,
   },
 
   list: {
@@ -827,24 +886,20 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 14,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#EEF2F7",
+    borderColor: "#ECECF7",
     shadowColor: "#111827",
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.04,
     shadowRadius: 18,
-    elevation: 3,
+    elevation: 2,
   },
 
   activeReadingCard: {
     borderColor: "#C4B5FD",
-    backgroundColor: "#FCFBFF",
   },
 
   cardContent: {
@@ -853,41 +908,39 @@ const styles = StyleSheet.create({
   },
 
   bookCover: {
-    width: 84,
-    height: 118,
+    width: 86,
+    height: 122,
     borderRadius: 16,
   },
 
   bookCoverPlaceholder: {
-    width: 84,
-    height: 118,
+    width: 86,
+    height: 122,
     borderRadius: 16,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#EEF0F5",
     alignItems: "center",
     justifyContent: "center",
   },
 
   bookCoverPlaceholderText: {
-    fontSize: 12,
     color: "#6B7280",
-    fontWeight: "600",
+    fontWeight: "700",
   },
 
   bookInfo: {
     flex: 1,
-    justifyContent: "center",
   },
 
   bookTitle: {
-    fontSize: 22,
-    fontWeight: "700",
+    fontSize: 21,
+    fontWeight: "900",
     color: "#111827",
   },
 
   bookAuthor: {
     fontSize: 14,
     color: "#6B7280",
-    marginTop: 4,
+    marginTop: 3,
   },
 
   genreBadge: {
@@ -901,7 +954,7 @@ const styles = StyleSheet.create({
 
   genreBadgeText: {
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "900",
     color: "#5B21B6",
   },
 
@@ -926,15 +979,15 @@ const styles = StyleSheet.create({
   bookPages: {
     fontSize: 15,
     color: "#4B5563",
-    marginTop: 12,
+    marginTop: 10,
   },
 
   progressBarBackground: {
-    height: 10,
+    height: 9,
     backgroundColor: "#ECECF3",
     borderRadius: 999,
     overflow: "hidden",
-    marginTop: 10,
+    marginTop: 9,
   },
 
   progressBarFill: {
@@ -959,7 +1012,7 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: 13,
     color: "#6B7280",
-    fontWeight: "500",
+    fontWeight: "700",
   },
 
   statusBadge: {
@@ -970,7 +1023,7 @@ const styles = StyleSheet.create({
 
   statusBadgeText: {
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "900",
     textTransform: "capitalize",
   },
 
@@ -996,5 +1049,55 @@ const styles = StyleSheet.create({
 
   finishedBadgeText: {
     color: "#166534",
+  },
+
+  emptyLibraryCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "#ECECF7",
+    alignItems: "center",
+  },
+
+  emptyEmoji: {
+    fontSize: 42,
+    marginBottom: 12,
+  },
+
+  emptyLibraryTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#111827",
+  },
+
+  emptyLibraryText: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 20,
+    marginTop: 8,
+  },
+
+  emptyStateCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: "#ECECF7",
+    alignItems: "center",
+  },
+
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#111827",
+    marginBottom: 8,
+  },
+
+  emptyStateText: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
   },
 });

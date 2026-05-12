@@ -30,10 +30,10 @@ const tabs = [
     inactiveIcon: "stats-chart-outline" as const,
   },
   {
-    key: "settings",
-    label: "Settings",
-    activeIcon: "settings" as const,
-    inactiveIcon: "settings-outline" as const,
+    key: "profile",
+    label: "Profile",
+    activeIcon: "person" as const,
+    inactiveIcon: "person-outline" as const,
   },
 ];
 
