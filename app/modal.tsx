@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useState } from "react";
+import { useDispatch } from "react-redux";
 import {
   Alert,
   Image,
@@ -12,6 +13,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+
+import { addBook } from "../src/features/books/booksSlice";
 
 type BookStatus = "planned" | "reading" | "finished";
 
@@ -59,6 +62,8 @@ const GENRES: BookGenre[] = [
 ];
 
 export default function AddBookScreen() {
+  const dispatch = useDispatch();
+
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
   const [totalPages, setTotalPages] = useState("");
@@ -213,8 +218,8 @@ export default function AddBookScreen() {
           : undefined,
       finishedAt: selectedStatus === "finished" ? now : undefined,
       updatedAt: now,
-      lastReadAt: undefined,
-      readingHistory: [],
+      lastReadAt: selectedStatus === "reading" ? now : undefined,
+      readingHistory: selectedStatus === "reading" ? [now] : [],
     };
 
     try {
@@ -223,6 +228,8 @@ export default function AddBookScreen() {
       const updatedBooks = [...parsedBooks, newBook];
 
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedBooks));
+
+      dispatch(addBook(newBook));
 
       Alert.alert("Saved", "Book was added to your library.");
       resetForm();

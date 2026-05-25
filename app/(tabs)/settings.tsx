@@ -1,5 +1,5 @@
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
 import * as Notifications from "expo-notifications";
 import { useEffect, useState } from "react";
 import {
@@ -24,6 +24,8 @@ Notifications.setNotificationHandler({
 const REMINDER_ENABLED_KEY = "novelo_daily_reminder_enabled";
 const REMINDER_TIME_KEY = "novelo_daily_reminder_time";
 const READING_GOAL_KEY = "novelo_reading_goal";
+const READING_MODE_KEY = "novelo_reading_mode";
+const FAVORITE_TIME_KEY = "novelo_favorite_reading_time";
 
 type ReminderTime = {
   hour: number;
@@ -35,23 +37,32 @@ type ReadingGoal = {
   pagesPerDay: number;
 };
 
+type ReadingMode = "calm" | "focused" | "motivated";
+type FavoriteReadingTime = "morning" | "afternoon" | "evening" | "night";
+
 export default function SettingsScreen() {
   const [notificationMessage, setNotificationMessage] = useState("");
+  const [goalMessage, setGoalMessage] = useState("");
+  const [preferenceMessage, setPreferenceMessage] = useState("");
+
   const [dailyReminderEnabled, setDailyReminderEnabled] = useState(false);
   const [selectedTime, setSelectedTime] = useState<ReminderTime>({
     hour: 20,
     minute: 0,
   });
-  const [showTimePicker, setShowTimePicker] = useState(false);
 
-  const [booksPerYear, setBooksPerYear] = useState("12");
-  const [pagesPerDay, setPagesPerDay] = useState("30");
-  const [goalMessage, setGoalMessage] = useState("");
+  const [booksPerYear, setBooksPerYear] = useState("35");
+  const [pagesPerDay, setPagesPerDay] = useState("50");
+
+  const [readingMode, setReadingMode] = useState<ReadingMode>("calm");
+  const [favoriteReadingTime, setFavoriteReadingTime] =
+    useState<FavoriteReadingTime>("evening");
 
   useEffect(() => {
     setupNotificationChannel();
     loadReminderSettings();
     loadReadingGoal();
+    loadPreferences();
   }, []);
 
   const setupNotificationChannel = async () => {
@@ -73,8 +84,7 @@ export default function SettingsScreen() {
       }
 
       if (savedTime) {
-        const parsed = JSON.parse(savedTime) as ReminderTime;
-        setSelectedTime(parsed);
+        setSelectedTime(JSON.parse(savedTime));
       }
     } catch (error) {
       console.log("Error loading reminder settings:", error);
@@ -95,53 +105,48 @@ export default function SettingsScreen() {
     }
   };
 
-  const saveReminderSettings = async (enabled: boolean, time: ReminderTime) => {
+  const loadPreferences = async () => {
     try {
-      await AsyncStorage.setItem(REMINDER_ENABLED_KEY, String(enabled));
-      await AsyncStorage.setItem(REMINDER_TIME_KEY, JSON.stringify(time));
+      const savedMode = await AsyncStorage.getItem(READING_MODE_KEY);
+      const savedTime = await AsyncStorage.getItem(FAVORITE_TIME_KEY);
+
+      if (
+        savedMode === "calm" ||
+        savedMode === "focused" ||
+        savedMode === "motivated"
+      ) {
+        setReadingMode(savedMode);
+      }
+
+      if (
+        savedTime === "morning" ||
+        savedTime === "afternoon" ||
+        savedTime === "evening" ||
+        savedTime === "night"
+      ) {
+        setFavoriteReadingTime(savedTime);
+      }
     } catch (error) {
-      console.log("Error saving reminder settings:", error);
+      console.log("Error loading preferences:", error);
     }
   };
 
-  const saveReadingGoal = async () => {
-    setGoalMessage("");
+  const formatTime = (hour: number, minute: number) => {
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(
+      2,
+      "0",
+    )}`;
+  };
 
-    const booksGoal = Number(booksPerYear);
-    const pagesGoal = Number(pagesPerDay);
-
-    if (!Number.isInteger(booksGoal) || booksGoal <= 0) {
-      setGoalMessage("Books per year must be a whole number greater than 0.");
-      return;
-    }
-
-    if (!Number.isInteger(pagesGoal) || pagesGoal <= 0) {
-      setGoalMessage("Pages per day must be a whole number greater than 0.");
-      return;
-    }
-
-    if (booksGoal > 500 || pagesGoal > 5000) {
-      setGoalMessage("Please choose realistic goal values.");
-      return;
-    }
-
-    try {
-      const goal: ReadingGoal = {
-        booksPerYear: booksGoal,
-        pagesPerDay: pagesGoal,
-      };
-
-      await AsyncStorage.setItem(READING_GOAL_KEY, JSON.stringify(goal));
-      setGoalMessage("Reading goals saved successfully.");
-    } catch (error) {
-      console.log("Error saving reading goal:", error);
-      setGoalMessage("Could not save reading goals.");
-    }
+  const saveReminderSettings = async (enabled: boolean, time: ReminderTime) => {
+    await AsyncStorage.setItem(REMINDER_ENABLED_KEY, String(enabled));
+    await AsyncStorage.setItem(REMINDER_TIME_KEY, JSON.stringify(time));
   };
 
   const requestNotificationPermission = async () => {
     const { status: existingStatus } =
       await Notifications.getPermissionsAsync();
+
     let finalStatus = existingStatus;
 
     if (existingStatus !== "granted") {
@@ -159,13 +164,7 @@ export default function SettingsScreen() {
     return true;
   };
 
-  const formatTime = (hour: number, minute: number) => {
-    const hh = String(hour).padStart(2, "0");
-    const mm = String(minute).padStart(2, "0");
-    return `${hh}:${mm}`;
-  };
-
-  const scheduleDailyReminder = async (time: ReminderTime) => {
+  const scheduleDailyReminder = async () => {
     const granted = await requestNotificationPermission();
 
     if (!granted) return;
@@ -180,19 +179,35 @@ export default function SettingsScreen() {
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour: time.hour,
-          minute: time.minute,
+          hour: selectedTime.hour,
+          minute: selectedTime.minute,
         },
       });
 
       setDailyReminderEnabled(true);
-      await saveReminderSettings(true, time);
+      await saveReminderSettings(true, selectedTime);
+
       setNotificationMessage(
-        `Daily reminder is enabled for ${formatTime(time.hour, time.minute)}.`,
+        `Daily reminder is enabled for ${formatTime(
+          selectedTime.hour,
+          selectedTime.minute,
+        )}.`,
       );
     } catch (error) {
-      console.log("Error scheduling daily reminder:", error);
+      console.log("Error scheduling reminder:", error);
       setNotificationMessage("Could not schedule daily reminder.");
+    }
+  };
+
+  const disableDailyReminder = async () => {
+    try {
+      await Notifications.cancelAllScheduledNotificationsAsync();
+      setDailyReminderEnabled(false);
+      await saveReminderSettings(false, selectedTime);
+      setNotificationMessage("Daily reminder has been disabled.");
+    } catch (error) {
+      console.log("Error disabling reminder:", error);
+      setNotificationMessage("Could not disable daily reminder.");
     }
   };
 
@@ -205,10 +220,7 @@ export default function SettingsScreen() {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: "Novelo test reminder",
-          body: `This is a local notification test for ${formatTime(
-            selectedTime.hour,
-            selectedTime.minute,
-          )}.`,
+          body: "This is a local notification test.",
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
@@ -224,46 +236,124 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleTimeChange = async (event: { type?: string }, date?: Date) => {
-    setShowTimePicker(false);
+  const changeHour = (direction: "up" | "down") => {
+    setSelectedTime((current) => {
+      const newHour =
+        direction === "up" ? (current.hour + 1) % 24 : (current.hour + 23) % 24;
 
-    if (event.type === "dismissed" || !date) {
+      return {
+        ...current,
+        hour: newHour,
+      };
+    });
+  };
+
+  const changeMinute = (direction: "up" | "down") => {
+    setSelectedTime((current) => {
+      const newMinute =
+        direction === "up"
+          ? (current.minute + 5) % 60
+          : (current.minute + 55) % 60;
+
+      return {
+        ...current,
+        minute: newMinute,
+      };
+    });
+  };
+
+  const saveReadingGoal = async () => {
+    setGoalMessage("");
+
+    const booksGoal = Number(booksPerYear);
+    const pagesGoal = Number(pagesPerDay);
+
+    if (!Number.isInteger(booksGoal) || booksGoal <= 0) {
+      setGoalMessage("Books per year must be greater than 0.");
       return;
     }
 
-    const newTime = {
-      hour: date.getHours(),
-      minute: date.getMinutes(),
-    };
-
-    setSelectedTime(newTime);
-
-    if (dailyReminderEnabled) {
-      await scheduleDailyReminder(newTime);
-    } else {
-      await saveReminderSettings(false, newTime);
-      setNotificationMessage(
-        `Reminder time selected: ${formatTime(newTime.hour, newTime.minute)}`,
-      );
+    if (!Number.isInteger(pagesGoal) || pagesGoal <= 0) {
+      setGoalMessage("Pages per day must be greater than 0.");
+      return;
     }
+
+    try {
+      const goal: ReadingGoal = {
+        booksPerYear: booksGoal,
+        pagesPerDay: pagesGoal,
+      };
+
+      await AsyncStorage.setItem(READING_GOAL_KEY, JSON.stringify(goal));
+      setGoalMessage("Reading goals saved successfully.");
+    } catch (error) {
+      console.log("Error saving reading goal:", error);
+      setGoalMessage("Could not save reading goals.");
+    }
+  };
+
+  const savePreferences = async () => {
+    try {
+      await AsyncStorage.setItem(READING_MODE_KEY, readingMode);
+      await AsyncStorage.setItem(FAVORITE_TIME_KEY, favoriteReadingTime);
+      setPreferenceMessage("Reading preferences saved successfully.");
+    } catch (error) {
+      console.log("Error saving preferences:", error);
+      setPreferenceMessage("Could not save reading preferences.");
+    }
+  };
+
+  const renderOption = (
+    label: string,
+    value: string,
+    activeValue: string,
+    onPress: () => void,
+  ) => {
+    const isActive = value === activeValue;
+
+    return (
+      <Pressable
+        style={[styles.optionButton, isActive && styles.optionButtonActive]}
+        onPress={onPress}
+      >
+        <Text
+          style={[
+            styles.optionButtonText,
+            isActive && styles.optionButtonTextActive,
+          ]}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    );
   };
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
     >
       <Text style={styles.title}>Settings</Text>
-      <Text style={styles.subtitle}>Manage your reading experience</Text>
+      <Text style={styles.subtitle}>Personalize your Novelo experience</Text>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Reading Reminders</Text>
-        <Text style={styles.sectionDescription}>
-          Stay consistent with your reading habit by enabling daily reminders.
-        </Text>
+        <View style={styles.cardHeader}>
+          <View style={styles.iconBox}>
+            <Ionicons name="notifications-outline" size={24} color="#6C63FF" />
+          </View>
+
+          <View style={styles.cardHeaderText}>
+            <Text style={styles.sectionTitle}>Reading Reminders</Text>
+            <Text style={styles.sectionDescription}>
+              Build consistency with daily reading alerts.
+            </Text>
+          </View>
+        </View>
 
         <View style={styles.statusRow}>
-          <Text style={styles.statusLabel}>Daily Reminder Status</Text>
+          <Text style={styles.statusLabel}>Daily reminder</Text>
+
           <View
             style={[
               styles.statusBadge,
@@ -285,22 +375,55 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <Text style={styles.timeTitle}>Reminder Time</Text>
+        <Text style={styles.label}>Reminder time</Text>
 
-        <Pressable
-          style={styles.timePickerButton}
-          onPress={() => setShowTimePicker(true)}
-        >
-          <Text style={styles.timePickerButtonText}>
+        <View style={styles.timeCard}>
+          <Text style={styles.timeText}>
             {formatTime(selectedTime.hour, selectedTime.minute)}
           </Text>
-        </Pressable>
+
+          <View style={styles.timeControls}>
+            <Pressable
+              style={styles.timeButton}
+              onPress={() => changeHour("up")}
+            >
+              <Text style={styles.timeButtonText}>Hour +</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.timeButton}
+              onPress={() => changeMinute("up")}
+            >
+              <Text style={styles.timeButtonText}>Min +</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.timeControls}>
+            <Pressable
+              style={styles.timeButtonSecondary}
+              onPress={() => changeHour("down")}
+            >
+              <Text style={styles.timeButtonSecondaryText}>Hour -</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.timeButtonSecondary}
+              onPress={() => changeMinute("down")}
+            >
+              <Text style={styles.timeButtonSecondaryText}>Min -</Text>
+            </Pressable>
+          </View>
+        </View>
 
         <Pressable
           style={styles.primaryButton}
-          onPress={() => scheduleDailyReminder(selectedTime)}
+          onPress={
+            dailyReminderEnabled ? disableDailyReminder : scheduleDailyReminder
+          }
         >
-          <Text style={styles.primaryButtonText}>Enable Daily Reminder</Text>
+          <Text style={styles.primaryButtonText}>
+            {dailyReminderEnabled ? "Disable Reminder" : "Enable Reminder"}
+          </Text>
         </Pressable>
 
         <Pressable
@@ -311,15 +434,23 @@ export default function SettingsScreen() {
         </Pressable>
 
         {notificationMessage ? (
-          <Text style={styles.notificationMessage}>{notificationMessage}</Text>
+          <Text style={styles.message}>{notificationMessage}</Text>
         ) : null}
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Reading Goals</Text>
-        <Text style={styles.sectionDescription}>
-          Set simple goals to turn reading into a consistent habit.
-        </Text>
+        <View style={styles.cardHeader}>
+          <View style={styles.iconBox}>
+            <Ionicons name="flag-outline" size={24} color="#6C63FF" />
+          </View>
+
+          <View style={styles.cardHeaderText}>
+            <Text style={styles.sectionTitle}>Reading Goals</Text>
+            <Text style={styles.sectionDescription}>
+              Set clear goals for your yearly reading progress.
+            </Text>
+          </View>
+        </View>
 
         <Text style={styles.label}>Books per year</Text>
         <TextInput
@@ -327,7 +458,8 @@ export default function SettingsScreen() {
           value={booksPerYear}
           onChangeText={setBooksPerYear}
           keyboardType="numeric"
-          placeholder="Example: 12"
+          placeholder="Example: 35"
+          placeholderTextColor="#A7AAB5"
         />
 
         <Text style={styles.label}>Pages per day</Text>
@@ -336,44 +468,137 @@ export default function SettingsScreen() {
           value={pagesPerDay}
           onChangeText={setPagesPerDay}
           keyboardType="numeric"
-          placeholder="Example: 30"
+          placeholder="Example: 50"
+          placeholderTextColor="#A7AAB5"
         />
 
         <Pressable style={styles.primaryButton} onPress={saveReadingGoal}>
           <Text style={styles.primaryButtonText}>Save Reading Goals</Text>
         </Pressable>
 
-        {goalMessage ? (
-          <Text style={styles.notificationMessage}>{goalMessage}</Text>
+        {goalMessage ? <Text style={styles.message}>{goalMessage}</Text> : null}
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.iconBox}>
+            <Ionicons name="sparkles-outline" size={24} color="#6C63FF" />
+          </View>
+
+          <View style={styles.cardHeaderText}>
+            <Text style={styles.sectionTitle}>Reading Preferences</Text>
+            <Text style={styles.sectionDescription}>
+              Adjust the app to match your reading routine.
+            </Text>
+          </View>
+        </View>
+
+        <Text style={styles.label}>Reading mode</Text>
+
+        <View style={styles.optionsRow}>
+          {renderOption("Calm", "calm", readingMode, () =>
+            setReadingMode("calm"),
+          )}
+          {renderOption("Focused", "focused", readingMode, () =>
+            setReadingMode("focused"),
+          )}
+          {renderOption("Motivated", "motivated", readingMode, () =>
+            setReadingMode("motivated"),
+          )}
+        </View>
+
+        <Text style={styles.label}>Favorite reading time</Text>
+
+        <View style={styles.optionsWrap}>
+          {renderOption("Morning", "morning", favoriteReadingTime, () =>
+            setFavoriteReadingTime("morning"),
+          )}
+          {renderOption("Afternoon", "afternoon", favoriteReadingTime, () =>
+            setFavoriteReadingTime("afternoon"),
+          )}
+          {renderOption("Evening", "evening", favoriteReadingTime, () =>
+            setFavoriteReadingTime("evening"),
+          )}
+          {renderOption("Night", "night", favoriteReadingTime, () =>
+            setFavoriteReadingTime("night"),
+          )}
+        </View>
+
+        <Pressable style={styles.primaryButton} onPress={savePreferences}>
+          <Text style={styles.primaryButtonText}>Save Preferences</Text>
+        </Pressable>
+
+        {preferenceMessage ? (
+          <Text style={styles.message}>{preferenceMessage}</Text>
         ) : null}
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>App Preferences</Text>
-        <Text style={styles.preferenceItem}>
-          • Notifications for reading reminders
-        </Text>
-        <Text style={styles.preferenceItem}>• Reading progress tracking</Text>
-        <Text style={styles.preferenceItem}>
-          • Personal reading notes and quotes
-        </Text>
-        <Text style={styles.preferenceHint}>
-          More customization options can be added here later.
-        </Text>
+        <View style={styles.cardHeader}>
+          <View style={styles.iconBox}>
+            <Ionicons name="color-palette-outline" size={24} color="#6C63FF" />
+          </View>
+
+          <View style={styles.cardHeaderText}>
+            <Text style={styles.sectionTitle}>Personalization</Text>
+            <Text style={styles.sectionDescription}>
+              Extra customization options planned for future versions.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.preferenceRow}>
+          <Ionicons name="image-outline" size={22} color="#6C63FF" />
+          <Text style={styles.preferenceText}>Profile photo</Text>
+          <View style={styles.soonBadge}>
+            <Text style={styles.soonBadgeText}>Soon</Text>
+          </View>
+        </View>
+
+        <View style={styles.preferenceRow}>
+          <Ionicons name="moon-outline" size={22} color="#6C63FF" />
+          <Text style={styles.preferenceText}>Dark mode</Text>
+          <View style={styles.soonBadge}>
+            <Text style={styles.soonBadgeText}>Soon</Text>
+          </View>
+        </View>
+
+        <View style={styles.preferenceRow}>
+          <Ionicons name="trophy-outline" size={22} color="#6C63FF" />
+          <Text style={styles.preferenceText}>Reading achievements</Text>
+          <View style={styles.soonBadge}>
+            <Text style={styles.soonBadgeText}>Soon</Text>
+          </View>
+        </View>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Profile</Text>
-        <Text style={styles.sectionDescription}>
-          This section is planned for the future. It can include profile
-          details, reading goals, and personal preferences.
-        </Text>
+        <View style={styles.cardHeader}>
+          <View style={styles.iconBox}>
+            <Ionicons name="information-circle-outline" size={24} color="#6C63FF" />
+          </View>
 
-        <View style={styles.comingSoonBox}>
-          <Text style={styles.comingSoonTitle}>Coming Soon</Text>
-          <Text style={styles.comingSoonText}>
-            Profile settings, avatar, personal goals, and more.
-          </Text>
+          <View style={styles.cardHeaderText}>
+            <Text style={styles.sectionTitle}>About Novelo</Text>
+            <Text style={styles.sectionDescription}>
+              A personal reading tracker built with Expo and React Native.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.aboutRow}>
+          <Text style={styles.aboutLabel}>Version</Text>
+          <Text style={styles.aboutValue}>1.0.0</Text>
+        </View>
+
+        <View style={styles.aboutRow}>
+          <Text style={styles.aboutLabel}>Storage</Text>
+          <Text style={styles.aboutValue}>Local device</Text>
+        </View>
+
+        <View style={styles.aboutRow}>
+          <Text style={styles.aboutLabel}>Native features</Text>
+          <Text style={styles.aboutValue}>Images, reminders</Text>
         </View>
       </View>
     </ScrollView>
@@ -383,68 +608,88 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F7F7FF",
   },
 
   contentContainer: {
-    padding: 24,
-    paddingBottom: 40,
+    padding: 20,
+    paddingBottom: 150,
   },
 
   title: {
-    fontSize: 30,
-    fontWeight: "700",
-    marginTop: 20,
+    fontSize: 34,
+    fontWeight: "900",
+    color: "#111827",
     textAlign: "center",
+    marginTop: 20,
   },
 
   subtitle: {
-    fontSize: 15,
+    fontSize: 16,
     color: "#6B7280",
     textAlign: "center",
-    marginTop: 8,
-    marginBottom: 24,
+    marginTop: 6,
+    marginBottom: 22,
   },
 
   card: {
-    backgroundColor: "#F8FAFC",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 26,
+    padding: 20,
+    marginBottom: 18,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#ECECF7",
+  },
+
+  cardHeader: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 18,
+  },
+
+  cardHeaderText: {
+    flex: 1,
+  },
+
+  iconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "#F2EFFF",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 8,
+    fontSize: 21,
+    fontWeight: "900",
+    color: "#111827",
   },
 
   sectionDescription: {
     fontSize: 14,
-    color: "#4B5563",
+    color: "#6B7280",
+    marginTop: 4,
     lineHeight: 20,
-    marginBottom: 14,
   },
 
   statusRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 14,
+    marginBottom: 16,
   },
 
   statusLabel: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "800",
     color: "#111827",
   },
 
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
     borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
 
   statusBadgeEnabled: {
@@ -456,8 +701,8 @@ const styles = StyleSheet.create({
   },
 
   statusBadgeText: {
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 13,
+    fontWeight: "900",
   },
 
   statusBadgeTextEnabled: {
@@ -468,109 +713,193 @@ const styles = StyleSheet.create({
     color: "#6B7280",
   },
 
-  timeTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 10,
+  label: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#111827",
+    marginBottom: 8,
   },
 
-  timePickerButton: {
-    backgroundColor: "#EDE9FE",
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
+  timeCard: {
+    backgroundColor: "#F5F3FF",
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 16,
+  },
+
+  timeText: {
+    fontSize: 34,
+    fontWeight: "900",
+    color: "#6C63FF",
+    textAlign: "center",
     marginBottom: 14,
   },
 
-  timePickerButtonText: {
-    color: "#5B21B6",
-    fontSize: 16,
-    fontWeight: "700",
+  timeControls: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 8,
   },
 
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 6,
-    marginTop: 4,
+  timeButton: {
+    flex: 1,
+    backgroundColor: "#6C63FF",
+    borderRadius: 14,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+
+  timeButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "900",
+  },
+
+  timeButtonSecondary: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E2DAFF",
+  },
+
+  timeButtonSecondaryText: {
+    color: "#6C63FF",
+    fontWeight: "900",
   },
 
   input: {
     borderWidth: 1,
     borderColor: "#D1D5DB",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     fontSize: 16,
     backgroundColor: "#FFFFFF",
-    marginBottom: 12,
+    marginBottom: 14,
+    color: "#111827",
   },
 
   primaryButton: {
-    backgroundColor: "#7C3AED",
-    paddingVertical: 12,
-    borderRadius: 12,
+    backgroundColor: "#6C63FF",
+    borderRadius: 18,
+    paddingVertical: 15,
     alignItems: "center",
+    marginTop: 4,
   },
 
   primaryButtonText: {
     color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "900",
   },
 
   secondaryButton: {
     backgroundColor: "#0F766E",
-    paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 18,
+    paddingVertical: 15,
     alignItems: "center",
     marginTop: 10,
   },
 
   secondaryButtonText: {
     color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-
-  notificationMessage: {
-    marginTop: 12,
-    fontSize: 14,
-    color: "#374151",
-    textAlign: "center",
-    lineHeight: 20,
-  },
-
-  preferenceItem: {
-    fontSize: 14,
-    color: "#374151",
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-
-  preferenceHint: {
-    fontSize: 13,
-    color: "#6B7280",
-    marginTop: 6,
-  },
-
-  comingSoonBox: {
-    backgroundColor: "#EEF2FF",
-    borderRadius: 14,
-    padding: 14,
-    marginTop: 8,
-  },
-
-  comingSoonTitle: {
     fontSize: 16,
-    fontWeight: "700",
-    color: "#4338CA",
-    marginBottom: 6,
+    fontWeight: "900",
   },
 
-  comingSoonText: {
+  message: {
     fontSize: 14,
     color: "#4B5563",
+    textAlign: "center",
     lineHeight: 20,
+    marginTop: 12,
+  },
+
+  optionsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 18,
+  },
+
+  optionsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 18,
+  },
+
+  optionButton: {
+    backgroundColor: "#F3F4F6",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+
+  optionButtonActive: {
+    backgroundColor: "#6C63FF",
+    borderColor: "#6C63FF",
+  },
+
+  optionButtonText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#374151",
+  },
+
+  optionButtonTextActive: {
+    color: "#FFFFFF",
+  },
+
+  preferenceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F1F6",
+  },
+
+  preferenceText: {
+    flex: 1,
+    fontSize: 15,
+    color: "#374151",
+    fontWeight: "800",
+  },
+
+  soonBadge: {
+    backgroundColor: "#F2EFFF",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+
+  soonBadgeText: {
+    color: "#6C63FF",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+
+  aboutRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F1F6",
+  },
+
+  aboutLabel: {
+    fontSize: 14,
+    color: "#6B7280",
+    fontWeight: "700",
+  },
+
+  aboutValue: {
+    fontSize: 14,
+    color: "#111827",
+    fontWeight: "900",
   },
 });
