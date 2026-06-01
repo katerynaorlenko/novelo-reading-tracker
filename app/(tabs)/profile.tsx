@@ -3,13 +3,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    Alert,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 type ProfileData = {
@@ -19,6 +19,12 @@ type ProfileData = {
 };
 
 const PROFILE_KEY = "novelo_profile";
+const READING_PREFERENCES_KEY = "novelo_reading_preferences";
+
+type ReadingPreferences = {
+  mode: string;
+  favoriteTime: string;
+};
 
 export default function ProfileScreen() {
   const [isEditing, setIsEditing] = useState(false);
@@ -31,8 +37,15 @@ export default function ProfileScreen() {
 
   const [draftProfile, setDraftProfile] = useState<ProfileData>(profile);
 
+  const [readingPreferences, setReadingPreferences] =
+    useState<ReadingPreferences>({
+      mode: "Focused",
+      favoriteTime: "Afternoon",
+    });
+
   useEffect(() => {
     loadProfile();
+    loadReadingPreferences();
   }, []);
 
   const loadProfile = async () => {
@@ -40,7 +53,7 @@ export default function ProfileScreen() {
       const savedProfile = await AsyncStorage.getItem(PROFILE_KEY);
 
       if (savedProfile) {
-        const parsedProfile = JSON.parse(savedProfile);
+        const parsedProfile = JSON.parse(savedProfile) as ProfileData;
         setProfile(parsedProfile);
         setDraftProfile(parsedProfile);
       }
@@ -49,15 +62,40 @@ export default function ProfileScreen() {
     }
   };
 
+  const loadReadingPreferences = async () => {
+    try {
+      const savedPreferences = await AsyncStorage.getItem(
+        READING_PREFERENCES_KEY,
+      );
+
+      if (savedPreferences) {
+        const parsedPreferences = JSON.parse(
+          savedPreferences,
+        ) as ReadingPreferences;
+
+        setReadingPreferences(parsedPreferences);
+      }
+    } catch (error) {
+      console.log("Error loading reading preferences:", error);
+    }
+  };
+
   const saveProfile = async () => {
-    if (!draftProfile.name.trim()) {
+    const trimmedProfile: ProfileData = {
+      name: draftProfile.name.trim(),
+      bio: draftProfile.bio.trim(),
+      favoriteGenre: draftProfile.favoriteGenre.trim(),
+    };
+
+    if (!trimmedProfile.name) {
       Alert.alert("Name required", "Please enter your profile name.");
       return;
     }
 
     try {
-      await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(draftProfile));
-      setProfile(draftProfile);
+      await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(trimmedProfile));
+      setProfile(trimmedProfile);
+      setDraftProfile(trimmedProfile);
       setIsEditing(false);
       Alert.alert("Saved", "Your profile has been updated.");
     } catch (error) {
@@ -76,6 +114,7 @@ export default function ProfileScreen() {
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
     >
       <Text style={styles.title}>Profile</Text>
       <Text style={styles.subtitle}>Your personal reading space</Text>
@@ -138,7 +177,7 @@ export default function ProfileScreen() {
             <Text style={styles.name}>{profile.name}</Text>
             <Text style={styles.role}>Novelo Reader</Text>
 
-            <Text style={styles.bio}>{profile.bio}</Text>
+            {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
 
             <View style={styles.genrePill}>
               <Ionicons name="heart-outline" size={18} color="#6C63FF" />
@@ -169,42 +208,38 @@ export default function ProfileScreen() {
         <View style={styles.menuTextWrapper}>
           <Text style={styles.menuTitle}>Settings</Text>
           <Text style={styles.menuSubtitle}>
-            Reading goals, reminders and app preferences
+            Reading goals, reminders and preferences
           </Text>
         </View>
 
         <Ionicons name="chevron-forward" size={22} color="#9CA3AF" />
       </Pressable>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Personalization</Text>
+      <View style={styles.readingStyleCard}>
+        <View style={styles.cardHeader}>
+          <View style={styles.smallIconBox}>
+            <Ionicons name="sparkles-outline" size={22} color="#6C63FF" />
+          </View>
 
-        <View style={styles.featureRow}>
-          <Ionicons name="image-outline" size={22} color="#6C63FF" />
-          <Text style={styles.featureText}>Profile photo</Text>
-          <Text style={styles.comingSoon}>Soon</Text>
+          <View style={styles.cardHeaderText}>
+            <Text style={styles.cardTitle}>Reading Style</Text>
+            <Text style={styles.cardSubtitle}>
+              A short summary of your current reading routine.
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.featureRow}>
-          <Ionicons name="color-palette-outline" size={22} color="#6C63FF" />
-          <Text style={styles.featureText}>Theme customization</Text>
-          <Text style={styles.comingSoon}>Soon</Text>
+        <View style={styles.styleRow}>
+          <Text style={styles.styleLabel}>Mode</Text>
+          <Text style={styles.styleValue}>{readingPreferences.mode}</Text>
         </View>
 
-        <View style={styles.featureRow}>
-          <Ionicons name="trophy-outline" size={22} color="#6C63FF" />
-          <Text style={styles.featureText}>Reading achievements</Text>
-          <Text style={styles.comingSoon}>Soon</Text>
+        <View style={styles.styleRow}>
+          <Text style={styles.styleLabel}>Favorite time</Text>
+          <Text style={styles.styleValue}>
+            {readingPreferences.favoriteTime}
+          </Text>
         </View>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Account</Text>
-
-        <Text style={styles.cardText}>
-          Cloud sync, login and backup can be added later when the project moves
-          from local storage to backend storage.
-        </Text>
       </View>
     </ScrollView>
   );
@@ -232,60 +267,60 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#6B7280",
     marginTop: 6,
-    marginBottom: 20,
+    marginBottom: 18,
   },
 
   profileCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 28,
-    padding: 22,
+    borderRadius: 26,
+    padding: 20,
     borderWidth: 1,
     borderColor: "#ECECF7",
-    marginBottom: 18,
+    marginBottom: 16,
     shadowColor: "#6C63FF",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.07,
-    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
     elevation: 3,
   },
 
   avatar: {
-    width: 82,
-    height: 82,
-    borderRadius: 28,
+    width: 74,
+    height: 74,
+    borderRadius: 25,
     backgroundColor: "#6C63FF",
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "center",
-    marginBottom: 14,
+    marginBottom: 12,
   },
 
   avatarText: {
-    fontSize: 38,
+    fontSize: 34,
     fontWeight: "900",
     color: "#FFFFFF",
   },
 
   name: {
-    fontSize: 28,
+    fontSize: 27,
     fontWeight: "900",
     color: "#111827",
     textAlign: "center",
   },
 
   role: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#6B7280",
     textAlign: "center",
-    marginTop: 4,
+    marginTop: 3,
   },
 
   bio: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#4B5563",
     textAlign: "center",
-    lineHeight: 22,
-    marginTop: 16,
+    lineHeight: 21,
+    marginTop: 12,
   },
 
   genrePill: {
@@ -297,7 +332,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    marginTop: 16,
+    marginTop: 14,
   },
 
   genrePillText: {
@@ -307,10 +342,10 @@ const styles = StyleSheet.create({
   },
 
   editProfileButton: {
-    marginTop: 18,
+    marginTop: 16,
     backgroundColor: "#6C63FF",
     borderRadius: 18,
-    paddingVertical: 15,
+    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
@@ -343,7 +378,7 @@ const styles = StyleSheet.create({
   },
 
   bioInput: {
-    minHeight: 100,
+    minHeight: 90,
     textAlignVertical: "top",
     lineHeight: 22,
   },
@@ -388,7 +423,7 @@ const styles = StyleSheet.create({
     padding: 18,
     borderWidth: 1,
     borderColor: "#ECECF7",
-    marginBottom: 18,
+    marginBottom: 16,
     flexDirection: "row",
     alignItems: "center",
   },
@@ -420,7 +455,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  card: {
+  readingStyleCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
     padding: 20,
@@ -429,42 +464,57 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
 
-  cardTitle: {
-    fontSize: 22,
-    fontWeight: "900",
-    color: "#111827",
-    marginBottom: 14,
-  },
-
-  featureRow: {
+  cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 11,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F1F6",
+    marginBottom: 16,
+    gap: 12,
   },
 
-  featureText: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#374151",
-    marginLeft: 10,
-  },
-
-  comingSoon: {
-    fontSize: 12,
-    fontWeight: "900",
-    color: "#6C63FF",
+  smallIconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
     backgroundColor: "#F2EFFF",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
-  cardText: {
-    fontSize: 15,
+  cardHeaderText: {
+    flex: 1,
+  },
+
+  cardTitle: {
+    fontSize: 21,
+    fontWeight: "900",
+    color: "#111827",
+  },
+
+  cardSubtitle: {
+    fontSize: 13,
     color: "#6B7280",
-    lineHeight: 22,
+    marginTop: 4,
+    lineHeight: 18,
+  },
+
+  styleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 11,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F1F6",
+  },
+
+  styleLabel: {
+    fontSize: 14,
+    color: "#6B7280",
+    fontWeight: "700",
+  },
+
+  styleValue: {
+    fontSize: 15,
+    color: "#111827",
+    fontWeight: "900",
   },
 });
