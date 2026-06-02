@@ -414,12 +414,21 @@ export default function LibraryScreen() {
       {isLibraryEmpty ? (
         <View style={styles.emptyLibraryCard}>
           <Text style={styles.emptyEmoji}>📚</Text>
+
           <Text style={styles.emptyLibraryTitle}>
             Start your reading journey
           </Text>
+
           <Text style={styles.emptyLibraryText}>
             Add your first book and start tracking your reading progress.
           </Text>
+
+          <Pressable
+            style={styles.emptyLibraryButton}
+            onPress={() => router.push("/modal" as never)}
+          >
+            <Text style={styles.emptyLibraryButtonText}>Add First Book</Text>
+          </Pressable>
         </View>
       ) : isFilteredEmpty ? (
         <View style={styles.emptyStateCard}>
@@ -1077,6 +1086,25 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
     marginTop: 8,
+  },
+
+  emptyLibraryButton: {
+    marginTop: 20,
+    backgroundColor: "#6C63FF",
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: "#6C63FF",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+
+  emptyLibraryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "900",
   },
 
   emptyStateCard: {
