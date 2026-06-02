@@ -45,7 +45,6 @@ export default function BookDetailsScreen() {
   const [currentPageInput, setCurrentPageInput] = useState("");
   const [notes, setNotes] = useState("");
   const [favoriteQuote, setFavoriteQuote] = useState("");
-  const [thoughts, setThoughts] = useState("");
   const [summary, setSummary] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<BookStatus>("planned");
   const [rating, setRating] = useState(0);
@@ -68,7 +67,6 @@ export default function BookDetailsScreen() {
         setCurrentPageInput(foundBook.currentPage.toString());
         setNotes(foundBook.notes || "");
         setFavoriteQuote(foundBook.favoriteQuote || "");
-        setThoughts(foundBook.thoughts || "");
         setSummary(foundBook.summary || "");
         setSelectedStatus(foundBook.status);
         setRating(foundBook.rating || 0);
@@ -119,6 +117,7 @@ export default function BookDetailsScreen() {
       setRating(updatedBook.rating || 0);
     } catch (error) {
       console.log("Error saving book changes:", error);
+      Alert.alert("Error", "Could not save book changes.");
     }
   };
 
@@ -127,10 +126,10 @@ export default function BookDetailsScreen() {
 
     const newCurrentPage = Number(currentPageInput);
 
-    if (Number.isNaN(newCurrentPage) || newCurrentPage < 0) {
+    if (!Number.isInteger(newCurrentPage) || newCurrentPage < 0) {
       Alert.alert(
         "Invalid value",
-        "Current page must be 0 or a positive number.",
+        "Current page must be 0 or a positive whole number.",
       );
       return;
     }
@@ -185,6 +184,7 @@ export default function BookDetailsScreen() {
       status: newStatus,
       currentPage: updatedCurrentPage,
       updatedAt: now,
+      lastReadAt: newStatus === "reading" ? now : book.lastReadAt,
       startedAt:
         (newStatus === "reading" || newStatus === "finished") && !book.startedAt
           ? now
@@ -216,7 +216,6 @@ export default function BookDetailsScreen() {
       ...book,
       notes,
       favoriteQuote,
-      thoughts,
       summary,
       rating,
       updatedAt: new Date().toISOString(),
@@ -229,32 +228,38 @@ export default function BookDetailsScreen() {
   const handleDeleteBook = async () => {
     if (!book) return;
 
-    Alert.alert("Delete book", "Are you sure you want to delete this book?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            const savedBooks = await AsyncStorage.getItem(STORAGE_KEY);
-            const parsedBooks: Book[] = savedBooks
-              ? JSON.parse(savedBooks)
-              : [];
-            const updatedBooks = parsedBooks.filter(
-              (item) => item.id !== book.id,
-            );
+    Alert.alert(
+      "Delete book",
+      `Are you sure you want to delete "${book.title}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const savedBooks = await AsyncStorage.getItem(STORAGE_KEY);
+              const parsedBooks: Book[] = savedBooks
+                ? JSON.parse(savedBooks)
+                : [];
+              const updatedBooks = parsedBooks.filter(
+                (item) => item.id !== book.id,
+              );
 
-            await AsyncStorage.setItem(
-              STORAGE_KEY,
-              JSON.stringify(updatedBooks),
-            );
-            router.back();
-          } catch (error) {
-            console.log("Error deleting book:", error);
-          }
+              await AsyncStorage.setItem(
+                STORAGE_KEY,
+                JSON.stringify(updatedBooks),
+              );
+
+              router.back();
+            } catch (error) {
+              console.log("Error deleting book:", error);
+              Alert.alert("Error", "Could not delete this book.");
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   const renderStatusOption = (label: string, value: BookStatus) => {
@@ -332,6 +337,7 @@ export default function BookDetailsScreen() {
 
   const progress = getProgressPercentage(book.currentPage, book.totalPages);
   const badgeStyles = getStatusBadgeStyle(book.status);
+  const hasAnyNotes = notes.trim() || favoriteQuote.trim() || summary.trim();
 
   return (
     <ScrollView
@@ -346,6 +352,7 @@ export default function BookDetailsScreen() {
             <Image source={{ uri: book.coverUri }} style={styles.coverImage} />
           ) : (
             <View style={styles.coverPlaceholder}>
+              <Text style={styles.coverPlaceholderIcon}>📖</Text>
               <Text style={styles.coverPlaceholderText}>No Cover</Text>
             </View>
           )}
@@ -353,6 +360,12 @@ export default function BookDetailsScreen() {
           <View style={styles.heroInfo}>
             <Text style={styles.title}>{book.title}</Text>
             <Text style={styles.author}>{book.author}</Text>
+
+            {book.genre ? (
+              <View style={styles.genreBadge}>
+                <Text style={styles.genreBadgeText}>{book.genre}</Text>
+              </View>
+            ) : null}
 
             {renderRatingStars()}
 
@@ -420,28 +433,28 @@ export default function BookDetailsScreen() {
             <Text style={styles.metaTitle}>Reading Timeline</Text>
 
             <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Started reading</Text>
+              <Text style={styles.metaLabel}>Started</Text>
               <Text style={styles.metaValue}>
                 {formatDisplayDate(book.startedAt)}
               </Text>
             </View>
 
             <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Finished on</Text>
+              <Text style={styles.metaLabel}>Finished</Text>
               <Text style={styles.metaValue}>
                 {formatDisplayDate(book.finishedAt)}
               </Text>
             </View>
 
             <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Last updated</Text>
+              <Text style={styles.metaLabel}>Updated</Text>
               <Text style={styles.metaValue}>
                 {formatDisplayDate(book.updatedAt)}
               </Text>
             </View>
 
             <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Last read</Text>
+              <Text style={styles.metaLabel}>Last activity</Text>
               <Text style={styles.metaValue}>
                 {formatDisplayDate(book.lastReadAt)}
               </Text>
@@ -468,6 +481,7 @@ export default function BookDetailsScreen() {
             <TextInput
               style={styles.input}
               placeholder="Enter current page"
+              placeholderTextColor="#9CA3AF"
               value={currentPageInput}
               onChangeText={setCurrentPageInput}
               keyboardType="numeric"
@@ -485,10 +499,20 @@ export default function BookDetailsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Notes</Text>
 
-          <Text style={styles.label}>Notes</Text>
+          {!hasAnyNotes ? (
+            <View style={styles.emptyNotesBox}>
+              <Text style={styles.emptyNotesTitle}>No notes yet</Text>
+              <Text style={styles.emptyNotesText}>
+                Add your thoughts, favorite quote or a short summary.
+              </Text>
+            </View>
+          ) : null}
+
+          <Text style={styles.label}>Personal Notes</Text>
           <TextInput
             style={styles.textArea}
-            placeholder="Write your notes about this book..."
+            placeholder="Write your personal notes..."
+            placeholderTextColor="#9CA3AF"
             value={notes}
             onChangeText={setNotes}
             multiline
@@ -498,17 +522,9 @@ export default function BookDetailsScreen() {
           <TextInput
             style={styles.textArea}
             placeholder="Add your favorite quote..."
+            placeholderTextColor="#9CA3AF"
             value={favoriteQuote}
             onChangeText={setFavoriteQuote}
-            multiline
-          />
-
-          <Text style={styles.label}>Thoughts</Text>
-          <TextInput
-            style={styles.textArea}
-            placeholder="Write your thoughts..."
-            value={thoughts}
-            onChangeText={setThoughts}
             multiline
           />
 
@@ -516,6 +532,7 @@ export default function BookDetailsScreen() {
           <TextInput
             style={styles.textArea}
             placeholder="Write a short summary..."
+            placeholderTextColor="#9CA3AF"
             value={summary}
             onChangeText={setSummary}
             multiline
@@ -536,7 +553,7 @@ export default function BookDetailsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
-  contentContainer: { padding: 20, paddingBottom: 140 },
+  contentContainer: { padding: 20, paddingBottom: 150 },
   centered: {
     flex: 1,
     alignItems: "center",
@@ -567,14 +584,38 @@ const styles = StyleSheet.create({
     backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
+    padding: 10,
   },
-  coverPlaceholderText: { fontSize: 14, color: "#6B7280", fontWeight: "600" },
+  coverPlaceholderIcon: {
+    fontSize: 28,
+    marginBottom: 6,
+  },
+  coverPlaceholderText: {
+    fontSize: 14,
+    color: "#6B7280",
+    fontWeight: "700",
+    textAlign: "center",
+  },
   heroInfo: { flex: 1, justifyContent: "center" },
-  title: { fontSize: 26, fontWeight: "700", color: "#111827" },
-  author: { fontSize: 16, color: "#6B7280", marginTop: 6 },
+  title: { fontSize: 25, fontWeight: "900", color: "#111827" },
+  author: { fontSize: 15, color: "#6B7280", marginTop: 6 },
+
+  genreBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#F2EFFF",
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginTop: 10,
+  },
+  genreBadgeText: {
+    color: "#6C63FF",
+    fontWeight: "800",
+    fontSize: 12,
+  },
 
   ratingRow: { flexDirection: "row", marginTop: 10 },
-  ratingStar: { fontSize: 30, marginRight: 6 },
+  ratingStar: { fontSize: 28, marginRight: 5 },
   ratingStarFilled: { color: "#F59E0B" },
   ratingStarEmpty: { color: "#D1D5DB" },
 
@@ -587,7 +628,7 @@ const styles = StyleSheet.create({
   },
   statusBadgeText: {
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "800",
     textTransform: "capitalize",
   },
   plannedBadge: { backgroundColor: "#E5E7EB" },
@@ -603,8 +644,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  infoText: { fontSize: 15, color: "#4B5563", fontWeight: "500" },
-  progressPercent: { fontSize: 14, color: "#6C63FF", fontWeight: "700" },
+  infoText: { fontSize: 15, color: "#4B5563", fontWeight: "600" },
+  progressPercent: { fontSize: 14, color: "#6C63FF", fontWeight: "800" },
   progressBarBackground: {
     height: 10,
     backgroundColor: "#ECECF3",
@@ -633,7 +674,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   segmentButtonActive: { backgroundColor: "#6C63FF" },
-  segmentButtonText: { fontSize: 14, fontWeight: "700", color: "#6B7280" },
+  segmentButtonText: { fontSize: 14, fontWeight: "800", color: "#6B7280" },
   segmentButtonTextActive: { color: "#FFFFFF" },
 
   metaCard: {
@@ -644,15 +685,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
-  metaTitle: { fontSize: 20, fontWeight: "700", marginBottom: 12 },
+  metaTitle: { fontSize: 20, fontWeight: "900", marginBottom: 12 },
   metaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 6,
+    paddingVertical: 7,
   },
-  metaLabel: { fontSize: 14, color: "#6B7280", fontWeight: "600" },
-  metaValue: { fontSize: 14, color: "#111827", fontWeight: "600" },
+  metaLabel: { fontSize: 14, color: "#6B7280", fontWeight: "700" },
+  metaValue: { fontSize: 14, color: "#111827", fontWeight: "800" },
 
   section: {
     backgroundColor: "#F8FAFC",
@@ -662,7 +703,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
-  sectionTitle: { fontSize: 20, fontWeight: "700", marginBottom: 12 },
+  sectionTitle: { fontSize: 20, fontWeight: "900", marginBottom: 12 },
   statusOptionsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -676,10 +717,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   statusOptionActive: { backgroundColor: "#6C63FF" },
-  statusOptionText: { color: "#374151", fontSize: 14, fontWeight: "600" },
+  statusOptionText: { color: "#374151", fontSize: 14, fontWeight: "700" },
   statusOptionTextActive: { color: "#FFFFFF" },
   helperText: { fontSize: 12, color: "#6B7280", marginTop: 8 },
-  label: { fontSize: 14, fontWeight: "600", marginBottom: 6, marginTop: 8 },
+  label: { fontSize: 14, fontWeight: "800", marginBottom: 6, marginTop: 8 },
   input: {
     borderWidth: 1,
     borderColor: "#D1D5DB",
@@ -688,6 +729,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     backgroundColor: "#FFFFFF",
+    color: "#111827",
   },
   textArea: {
     borderWidth: 1,
@@ -697,17 +739,37 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     backgroundColor: "#FFFFFF",
-    minHeight: 90,
+    minHeight: 95,
     textAlignVertical: "top",
+    color: "#111827",
+  },
+  emptyNotesBox: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginBottom: 10,
+  },
+  emptyNotesTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#111827",
+    marginBottom: 4,
+  },
+  emptyNotesText: {
+    fontSize: 13,
+    color: "#6B7280",
+    lineHeight: 18,
   },
   primaryButton: {
-    backgroundColor: "#2563EB",
+    backgroundColor: "#6C63FF",
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: "center",
     marginTop: 14,
   },
-  primaryButtonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+  primaryButtonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
   deleteButton: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
@@ -717,5 +779,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 22,
   },
-  deleteButtonText: { color: "#DC2626", fontSize: 16, fontWeight: "700" },
+  deleteButtonText: { color: "#DC2626", fontSize: 16, fontWeight: "800" },
 });
