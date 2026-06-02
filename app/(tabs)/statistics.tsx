@@ -199,6 +199,8 @@ export default function StatisticsScreen() {
             Math.round((finishedBooks / readingGoal.booksPerYear) * 100),
           );
 
+    const booksLeft = Math.max(0, readingGoal.booksPerYear - finishedBooks);
+
     const allReadingHistory = validBooks.flatMap(
       (book) => book.readingHistory || [],
     );
@@ -243,6 +245,7 @@ export default function StatisticsScreen() {
       averageRating,
       ratedBooksCount,
       booksGoalProgress,
+      booksLeft,
       streak,
       uniqueReadingDays,
       favoriteGenre,
@@ -301,6 +304,11 @@ export default function StatisticsScreen() {
 
         <Text style={styles.goalPercent}>
           {stats.booksGoalProgress}% reached
+        </Text>
+
+        <Text style={styles.goalRemaining}>
+          Keep going — {stats.booksLeft} book{stats.booksLeft === 1 ? "" : "s"}{" "}
+          left
         </Text>
 
         <Text style={styles.goalHint}>
@@ -422,7 +430,7 @@ const styles = StyleSheet.create({
 
   contentContainer: {
     padding: 24,
-    paddingBottom: 140,
+    paddingBottom: 220,
   },
 
   title: {
@@ -501,6 +509,13 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#5B21B6",
     marginTop: 10,
+  },
+
+  goalRemaining: {
+    fontSize: 14,
+    color: "#4B5563",
+    marginTop: 6,
+    fontWeight: "600",
   },
 
   goalHint: {
