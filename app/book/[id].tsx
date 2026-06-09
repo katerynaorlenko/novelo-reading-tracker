@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -50,11 +50,7 @@ export default function BookDetailsScreen() {
   const [rating, setRating] = useState(0);
   const [activeTab, setActiveTab] = useState<DetailsTab>("overview");
 
-  useEffect(() => {
-    loadBook();
-  }, [id]);
-
-  const loadBook = async () => {
+  const loadBook = useCallback(async () => {
     try {
       const savedBooks = await AsyncStorage.getItem(STORAGE_KEY);
       if (!savedBooks) return;
@@ -74,7 +70,11 @@ export default function BookDetailsScreen() {
     } catch (error) {
       console.log("Error loading book details:", error);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    loadBook();
+  }, [loadBook]);
 
   const formatDisplayDate = (value?: string) => {
     if (!value) return "—";

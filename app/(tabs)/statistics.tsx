@@ -35,6 +35,63 @@ const STORAGE_KEY = "novelo_books";
 const READING_GOAL_KEY = "novelo_reading_goal";
 const MAX_TOTAL_PAGES = 5000;
 
+const normalizeDate = (date: Date) => {
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+};
+
+const calculateStreak = (history: string[]) => {
+  if (history.length === 0) return 0;
+
+  const uniqueDays = Array.from(
+    new Set(
+      history
+        .map((date) => {
+          const parsed = new Date(date);
+          if (Number.isNaN(parsed.getTime())) return null;
+          return normalizeDate(parsed).toISOString();
+        })
+        .filter(Boolean) as string[],
+    ),
+  )
+    .map((date) => new Date(date))
+    .sort((a, b) => b.getTime() - a.getTime());
+
+  if (uniqueDays.length === 0) return 0;
+
+  const today = normalizeDate(new Date());
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  const firstDay = uniqueDays[0];
+
+  if (
+    firstDay.getTime() !== today.getTime() &&
+    firstDay.getTime() !== yesterday.getTime()
+  ) {
+    return 0;
+  }
+
+  let streak = 1;
+  let previousDay = firstDay;
+
+  for (let i = 1; i < uniqueDays.length; i++) {
+    const currentDay = uniqueDays[i];
+    const expectedPreviousDay = new Date(previousDay);
+    expectedPreviousDay.setDate(previousDay.getDate() - 1);
+
+    if (currentDay.getTime() === expectedPreviousDay.getTime()) {
+      streak += 1;
+      previousDay = currentDay;
+    } else {
+      break;
+    }
+  }
+
+  return streak;
+};
+
 export default function StatisticsScreen() {
   const [books, setBooks] = useState<Book[]>([]);
   const [readingGoal, setReadingGoal] = useState<ReadingGoal>({
@@ -73,63 +130,6 @@ export default function StatisticsScreen() {
     } catch (error) {
       console.log("Error loading reading goal:", error);
     }
-  };
-
-  const normalizeDate = (date: Date) => {
-    const normalized = new Date(date);
-    normalized.setHours(0, 0, 0, 0);
-    return normalized;
-  };
-
-  const calculateStreak = (history: string[]) => {
-    if (history.length === 0) return 0;
-
-    const uniqueDays = Array.from(
-      new Set(
-        history
-          .map((date) => {
-            const parsed = new Date(date);
-            if (Number.isNaN(parsed.getTime())) return null;
-            return normalizeDate(parsed).toISOString();
-          })
-          .filter(Boolean) as string[],
-      ),
-    )
-      .map((date) => new Date(date))
-      .sort((a, b) => b.getTime() - a.getTime());
-
-    if (uniqueDays.length === 0) return 0;
-
-    const today = normalizeDate(new Date());
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-
-    const firstDay = uniqueDays[0];
-
-    if (
-      firstDay.getTime() !== today.getTime() &&
-      firstDay.getTime() !== yesterday.getTime()
-    ) {
-      return 0;
-    }
-
-    let streak = 1;
-    let previousDay = firstDay;
-
-    for (let i = 1; i < uniqueDays.length; i++) {
-      const currentDay = uniqueDays[i];
-      const expectedPreviousDay = new Date(previousDay);
-      expectedPreviousDay.setDate(previousDay.getDate() - 1);
-
-      if (currentDay.getTime() === expectedPreviousDay.getTime()) {
-        streak += 1;
-        previousDay = currentDay;
-      } else {
-        break;
-      }
-    }
-
-    return streak;
   };
 
   const stats = useMemo(() => {
